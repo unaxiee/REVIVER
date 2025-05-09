@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "RdvclPvXhyo=",
+  "success": true,
+  "projectFilePath": "D:\\Code\\factoryio-sdk-master\\factoryio-sdk-master\\samples\\Controllers\\Controllers.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\xieyo\\.nuget\\packages\\screenrecorderlib\\6.5.1\\screenrecorderlib.6.5.1.nupkg.sha512"
+  ],
+  "logs": []
+}
