@@ -10,7 +10,7 @@ using System.Collections.Generic;
 
 namespace Controllers
 {
-    public class SortingHeightAdvanced : Controller
+    public class SortingHeightAdvanced_L198 : Controller
     {
         MemoryBit feederConveyor = MemoryMap.Instance.GetBit("Feeder conveyor", MemoryType.Output);
         MemoryBit entryConveyor = MemoryMap.Instance.GetBit("Entry conveyor", MemoryType.Output);
@@ -59,7 +59,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public SortingHeightAdvanced()
+        public SortingHeightAdvanced_L198()
         {
             feederConveyor.Value = false;
             entryConveyor.Value = false;
@@ -195,7 +195,7 @@ namespace Controllers
                 if (ftAtRightEntry.Q)
                 {
                     turn.Value = false;
-                    unload.Value = false;
+                    unload.Value = !(false);
                     turnTableState = State.State13;
                 }
             }

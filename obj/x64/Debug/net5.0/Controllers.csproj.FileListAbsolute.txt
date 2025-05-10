@@ -20,3 +20,4 @@ D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\obj\x64\De
 D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\bin\x64\Debug\net5.0\ScreenRecorderLib.dll
 D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\bin\x64\Debug\net5.0\ScreenRecorderLib.pdb
 D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\bin\x64\Debug\net5.0\ScreenRecorderLib.xml
+D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\obj\x64\Debug\net5.0\Controllers.sourcelink.json
