@@ -39,21 +39,21 @@ namespace Controllers
                 .ToList();
             System.Diagnostics.Debug.WriteLine($"Found {classNames.Count} manipulation classes.");
 
+            //Stopwatch used to measure elapsed time between cycles
+            Stopwatch stopwatch = new Stopwatch();
+
+            //MemoryBit used to switch FACTORY I/O between edit and run mode
+            MemoryBit start = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Output);
+
+            //MemoryBit used to detect if FACTORY I/O is edit or run mode
+            MemoryBit running = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Input);
+
             foreach (var name in classNames)
             {
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
                 Controller controller = (Controller)Activator.CreateInstance(controllerType);
                 System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
-
-                //Stopwatch used to measure elapsed time between cycles
-                Stopwatch stopwatch = new Stopwatch();
-
-                //MemoryBit used to switch FACTORY I/O between edit and run mode
-                MemoryBit start = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Output);
-
-                //MemoryBit used to detect if FACTORY I/O is edit or run mode
-                MemoryBit running = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Input);
 
                 CreateRecording(name);
 
@@ -119,7 +119,7 @@ namespace Controllers
 
         static void CreateRecording(string videoName)
         {
-            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos";
+            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\test";
             string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
             if (File.Exists(videoPath))
                 File.Delete(videoPath);
