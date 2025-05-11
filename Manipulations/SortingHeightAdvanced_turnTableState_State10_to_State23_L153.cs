@@ -10,7 +10,7 @@ using System.Collections.Generic;
 
 namespace Controllers
 {
-    public class SortingHeightAdvanced : Controller
+    public class SortingHeightAdvanced_turnTableState_State10_to_State23_L153 : Controller
     {
         MemoryBit feederConveyor = MemoryMap.Instance.GetBit("Feeder conveyor", MemoryType.Output);
         MemoryBit entryConveyor = MemoryMap.Instance.GetBit("Entry conveyor", MemoryType.Output);
@@ -57,7 +57,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public SortingHeightAdvanced()
+        public SortingHeightAdvanced_turnTableState_State10_to_State23_L153()
         {
             feederConveyor.Value = false;
             entryConveyor.Value = false;
@@ -150,7 +150,7 @@ namespace Controllers
                         if (isHigh)
                         {
                             //High boxes
-                            turnTableState = State.State10; 
+                            turnTableState = State.State23;
                             entryConveyorState = State.State1;
                         }
                         else

@@ -52,13 +52,14 @@ namespace Controllers
             {
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
-                Controller controller = (Controller)Activator.CreateInstance(controllerType);
-                System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
 
                 CreateRecording(name);
 
                 //Forcing a rising edge on the start MemoryBit so FACTORY I/O can detect it
                 SwitchToRun(start);
+
+                Controller controller = (Controller)Activator.CreateInstance(controllerType);
+                System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
 
                 stopwatch.Start();
 
@@ -95,6 +96,7 @@ namespace Controllers
 
                 EndRecording();
             }
+
             MemoryMap.Instance.Dispose();
         }
 
@@ -119,8 +121,8 @@ namespace Controllers
 
         static void CreateRecording(string videoName)
         {
-            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\test";
-            string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
+            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos";
+            string videoPath = Path.Combine(videoFolder, $"{videoName}_LowBox.mp4");
             if (File.Exists(videoPath))
                 File.Delete(videoPath);
             _rec = Recorder.CreateRecorder();
