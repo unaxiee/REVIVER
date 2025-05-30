@@ -1,3 +1,8 @@
 bin/
 obj/
 Videos/
+Lib/
+Scripts/
+pyvenv.cfg
+test_Manipulations
+video_process
