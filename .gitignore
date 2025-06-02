@@ -4,5 +4,6 @@ Videos/
 Lib/
 Scripts/
 pyvenv.cfg
-test_Manipulations
-video_process
+test_Manipulations/
+video_process/
+share/
