@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -JQwenJob                             # Job name
-#SBATCH --account=gts-szonouz6-paid             # Replace with your actual charge account
+#SBATCH --account=gts-szonouz6             # Replace with your actual charge account
 #SBATCH -N1
-#SBATCH -t 03:00:00                                  # Time in minutes
+#SBATCH -t 5:00:00                                  # Time in minutes
 #SBATCH -q inferno                             # QOS
 #SBATCH --gpus=A100:1
 #SBATCH -C A100-80GB
@@ -14,6 +14,11 @@
 cd $SLURM_SUBMIT_DIR
 
 module load anaconda3
-conda activate qwen
+source /storage/home/hcoda1/5/yxie405/p-szonouz6-0/.venv/bin/activate
+
+export HF_HOME=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
+export TRANSFORMERS_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
+export HF_HUB_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
+export TMPDIR=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/tmp
 
 srun python query_frame.py
