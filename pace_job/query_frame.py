@@ -20,15 +20,15 @@ processor = AutoProcessor.from_pretrained(
 print('processor ready')
 
 base_single_frame_prompt = (
-    "You're overlooking a T-shaped system,"
-    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor)"
-    "meeting at a central turntable."
+    "You're overlooking a T-shaped system, "
+    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor) "
+    "meeting at a central turntable. "
     "Describe where the {complete_item} is in the image without mentioning the movement of the {item}."
 )
 base_multiple_frames_prompt = (
-    "You're overlooking a T-shaped system,"
-    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor)"
-    "meeting at a central turntable."
+    "You're overlooking a T-shaped system, "
+    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor) "
+    "meeting at a central turntable. "
     "Describe where the {complete_item} is in each image. Don't assume the {item} stay at the same place in all images."
 )
 item_dict = {
