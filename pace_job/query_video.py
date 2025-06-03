@@ -19,19 +19,21 @@ processor = AutoProcessor.from_pretrained(
 print('processor ready')
 
 base_prompt = (
-    "You are observing a T-shape conveyor-based sorting system in a factory setting. "
+    "You are observing a T-shaped conveyor-based sorting system in a factory. "
     "The system has the following components: "
-        "1. A horizontal conveyor on the right side, where the process begins. "
+        "1. A horizontal conveyor on the right side, where each item begins its journey. "
         "2. A turntable located at the center left. "
         "3. A vertical conveyor on the left, split into two sections: one above and one below the turntable. "
     "The intended movement of the {complete_item} is as follows: "
-        "1. The {item} moves from right to left along the horizontal conveyor. "
-        "2. The {item} is loaded onto the turntable."
-        "3. The turntable rotates and unloads the {item} onto the vertical conveyor. "
-        "4.The {item} moves {direction} along the vertical conveyor. "
-        "5. The {item} should reach the final destination at {destination} end of the vertical conveyor. "
-    "Task: Carefully track the {item} throughout the video. Determine whether it reaches the correct final destination. "
-    "Think step by step while analyzing the sequence. Base your reasoning only on the actual behavior of the {item} in the video."
+        "1. It moves from right to left along the horizontal conveyor. "
+        "2. It is loaded onto the turntable. "
+        "3. The turntable rotates and transfers it onto the vertical conveyor. "
+        "4. It moves {direction} along the vertical conveyor. "
+        "5. It should reach the {destination} end of the vertical conveyor. "
+    "However, not all videos show a complete process. Some items may get stuck or stop before reaching the final destination. "
+    "Task: Carefully track the {item} throughout the video. Determine whether it successfully reaches the correct final destination. "
+    "Do not assume the process is complete unless you see the final step occur. "
+    "Analyze the process step by step. Base your reasoning only on what is visually observed in the video."    
 )
 prompt_text_dict = {
     "blue_square": base_prompt.format(complete_item="blue item with a wooden pallet under it", item="blue item", direction="downwards", destination="bottom"),
