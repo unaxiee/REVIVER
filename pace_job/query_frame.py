@@ -54,70 +54,68 @@ user_define_frames = {
     3: [0, 5, 8]
 }
 
-for frame_folder in os.listdir('sampled_frames'):
-    print(frame_folder)
-    with open(log_file, 'a', encoding='utf-8') as f:
+with open(log_file, 'a', encoding='utf-8') as f:
+    for frame_folder in os.listdir('sampled_frames'):
+        print(frame_folder)
         f.write(f"=== Item: {frame_folder} ===\n\n")
 
-    videos = set()
-    for frame in os.listdir('sampled_frames/' + frame_folder):
-        videos.add(frame.split('_frame_')[0])
+        videos = set()
+        for frame in os.listdir('sampled_frames/' + frame_folder):
+            videos.add(frame.split('_frame_')[0])
 
-    for video in videos:
-        print(video)
-        with open(log_file, 'a', encoding='utf-8') as f:
+        for video in videos:
+            print(video)
             f.write(f"=== Manipulation: {video} ===\n\n")
 
-        # Max 8 images for one A100 80G GPU
-        for num_frame in range(1, 9):
-            if num_frame <= 3:
-                query_frames = user_define_frames[num_frame]
-            else:
-                query_frames = np.linspace(0, 9, num_frame, dtype=int).tolist()
+            # Max 8 images for one A100 80G GPU
+            for num_frame in range(1, 9):
+                if num_frame <= 3:
+                    query_frames = user_define_frames[num_frame]
+                else:
+                    query_frames = np.linspace(0, 9, num_frame, dtype=int).tolist()
 
-            if num_frame == 1:
-                prompt_text = prompt_text_single_frame_prompt_dict[frame_folder]
-            else:
-                prompt_text = prompt_text_multiple_frames_prompt_dict[frame_folder]
+                if num_frame == 1:
+                    prompt_text = prompt_text_single_frame_prompt_dict[frame_folder]
+                else:
+                    prompt_text = prompt_text_multiple_frames_prompt_dict[frame_folder]
 
-            # Messages containing a local video path and a text query
-            messages = [
-                {
-                    "role": "user",
-                    "content": [
-                        *[
-                            {"type": "image", "image": f"sampled_frames/{frame_folder}/{video}_frame_{i}.jpg"}
-                            for i in query_frames
+                # Messages containing a local video path and a text query
+                messages = [
+                    {
+                        "role": "user",
+                        "content": [
+                            *[
+                                {"type": "image", "image": f"sampled_frames/{frame_folder}/{video}_frame_{i}.jpg"}
+                                for i in query_frames
+                            ],
+                            {"type": "text", "text": prompt_text},
                         ],
-                        {"type": "text", "text": prompt_text},
-                    ],
-                }
-            ]
+                    }
+                ]
 
-            # Preparation for inference
-            text = processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-            image_inputs, video_inputs = process_vision_info(messages)
-            inputs = processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
-                return_tensors="pt",
-            )
-            inputs = inputs.to("cuda")
+                # Preparation for inference
+                text = processor.apply_chat_template(
+                    messages, tokenize=False, add_generation_prompt=True
+                )
+                image_inputs, video_inputs = process_vision_info(messages)
+                inputs = processor(
+                    text=[text],
+                    images=image_inputs,
+                    videos=video_inputs,
+                    padding=True,
+                    return_tensors="pt",
+                )
+                inputs = inputs.to("cuda")
 
-            # Inference: Generation of the output
-            generated_ids = model.generate(**inputs, max_new_tokens=512)
-            generated_ids_trimmed = [
-                out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-            ]
-            output_text = processor.batch_decode(
-                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-            )
-            
-            with open(log_file, 'a', encoding='utf-8') as f:
+                # Inference: Generation of the output
+                generated_ids = model.generate(**inputs, max_new_tokens=512)
+                generated_ids_trimmed = [
+                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+                ]
+                output_text = processor.batch_decode(
+                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+                )
+                
                 f.write(f"=== Number of frames: {num_frame} ===\n")
                 for line in output_text:
                     f.write(line + "\n")
