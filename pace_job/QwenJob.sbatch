@@ -2,11 +2,10 @@
 #SBATCH -JQwenJob                             # Job name
 #SBATCH --account=gts-szonouz6             # Replace with your actual charge account
 #SBATCH -N1
-#SBATCH -t 5:00:00                                  # Time in minutes
+#SBATCH -t 1:00:00                                  # Time in minutes
 #SBATCH -q inferno                             # QOS
-#SBATCH --gpus=A100:1
-#SBATCH -C A100-80GB
-#SBATCH --mem-per-gpu=80G
+#SBATCH --gpus=H200:1
+#SBATCH --mem-per-gpu=140G
 #SBATCH -o qwen_output-%j.log                  # Output log file
 #SBATCH --mail-type=BEGIN,END,FAIL
 #SBATCH --mail-user=yxie405@gatech.edu
@@ -21,4 +20,4 @@ export TRANSFORMERS_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
 export HF_HUB_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
 export TMPDIR=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/tmp
 
-srun python query_frame.py
+srun python query_video.py

@@ -1,9 +1,11 @@
 bin/
-obj/
-Videos/
+Include/
 Lib/
+obj/
+pace_job/hf_cache/
+pace_job/*.log
+pace_job/openai_api_key
 Scripts/
-pyvenv.cfg
-test_Manipulations/
-video_process/
 share/
+Videos/
+pyvenv.cfg

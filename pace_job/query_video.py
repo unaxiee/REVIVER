@@ -20,20 +20,21 @@ print('processor ready')
 
 base_prompt = (
     "You are observing a T-shaped conveyor-based sorting system in a factory. "
-    "The system has the following components: "
-        "1. A horizontal conveyor on the right side, where each item begins its journey. "
-        "2. A turntable located at the center left. "
-        "3. A vertical conveyor on the left, split into two sections: one above and one below the turntable. "
-    "The intended movement of the {complete_item} is as follows: "
+    "The system includes: "
+        "1. A horizontal conveyor on the right side where each item starts. "
+        "2. A turntable at the center left. "
+        "3. A vertical conveyor on the left, split into a top and bottom section. "
+    "Each {complete_item} is intended to follow this movement sequence: "
         "1. It moves from right to left along the horizontal conveyor. "
         "2. It is loaded onto the turntable. "
-        "3. The turntable rotates and transfers it onto the vertical conveyor. "
-        "4. It moves {direction} along the vertical conveyor. "
-        "5. It should reach the {destination} end of the vertical conveyor. "
-    "However, not all videos show a complete process. Some items may get stuck or stop before reaching the final destination. "
-    "Task: Carefully track the {item} throughout the video. Determine whether it successfully reaches the correct final destination. "
-    "Do not assume the process is complete unless you see the final step occur. "
-    "Analyze the process step by step. Base your reasoning only on what is visually observed in the video."    
+        "3. The turntable rotates. "
+        "4. It is unloaded onto the vertical conveyor. "
+        "5. It moves {direction} along the vertical conveyor to the {destination} end. "
+    "However, not all videos show a complete or correct process. Some items may stop early, fail to rotate, or end at the wrong location. "
+    "Your task is to carefully compare the actual movements in the video with the intended steps above. "
+    "Explain which steps happened and which ones did not. "
+    "Then, decide whether the {item} correctly reached the {destination} end. "
+    "Base your judgment only on what is visually shown in the video. Do not assume any step occurred unless it is clearly visible."
 )
 prompt_text_dict = {
     "blue_square": base_prompt.format(complete_item="blue item with a wooden pallet under it", item="blue item", direction="downwards", destination="bottom"),
@@ -87,7 +88,7 @@ with open(log_file, 'a', encoding='utf-8') as f:
             inputs = inputs.to(model.device)
 
             # Inference: Generation of the output
-            generated_ids = model.generate(**inputs, max_new_tokens=512)
+            generated_ids = model.generate(**inputs, max_new_tokens=1024)
             generated_ids_trimmed = [
                 out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
             ]

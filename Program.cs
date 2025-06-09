@@ -32,7 +32,7 @@ namespace Controllers
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            string manipulationFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations";
+            string manipulationFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations\SortingHeightAdvanced";
             string[] manipulationFiles = Directory.GetFiles(manipulationFolder, "*.cs");
             var classNames = manipulationFiles
                 .Select(Path.GetFileNameWithoutExtension)
@@ -122,7 +122,7 @@ namespace Controllers
         static void CreateRecording(string videoName)
         {
             string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos";
-            string videoPath = Path.Combine(videoFolder, $"{videoName}_LowBox.mp4");
+            string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
             if (File.Exists(videoPath))
                 File.Delete(videoPath);
             _rec = Recorder.CreateRecorder();

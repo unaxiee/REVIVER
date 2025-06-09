@@ -27,7 +27,8 @@ base_prompt = (
     "After the reference images, you will be shown several query images. "
     "For each query image, describe where the {complete_item} is located within the conveyor system. "
     "The {item}'s location may differ between query images. "
-    "Do not repeat the content of the reference images, but use them to guide your reasoning."
+    "Do not repeat the content of the reference images, but use them to guide your reasoning. "
+    "At the end, summarize the locations of all query images as plain text, without using LaTeX formatting, boxes, or special symbols."
 )
 prompt_text_dict = {
     "blue_square": base_prompt.format(complete_item="blue item with a wooden pallet under it", item="blue item"),
@@ -127,7 +128,7 @@ with open(log_file, 'a', encoding='utf-8') as f:
                 inputs = inputs.to("cuda")
 
                 # Inference: Generation of the output
-                generated_ids = model.generate(**inputs, max_new_tokens=512)
+                generated_ids = model.generate(**inputs, max_new_tokens=600)
                 generated_ids_trimmed = [
                     out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
                 ]
