@@ -121,8 +121,8 @@ namespace Controllers
 
         static void CreateRecording(string videoName)
         {
-            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos";
-            string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
+            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\SortingHeightAdvanced\HighBox";
+            string videoPath = Path.Combine(videoFolder, $"{videoName}_HighBox.mp4");
             if (File.Exists(videoPath))
                 File.Delete(videoPath);
             _rec = Recorder.CreateRecorder();

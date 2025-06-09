@@ -7,5 +7,5 @@ pace_job/*.log
 pace_job/openai_api_key
 Scripts/
 share/
-Videos/
+Videos/SortingHeightAdvanced/
 pyvenv.cfg
