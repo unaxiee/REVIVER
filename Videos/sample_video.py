@@ -2,9 +2,9 @@ import cv2
 import os
 import glob
 
-input_folder = 'SortingHeightAdvanced/test/cropped_videos'  # Folder with videos
-output_folder = 'SortingHeightAdvanced/test/sampled_frames'
-num_samples = 10
+input_folder = 'SortingHeightAdvanced/BlueSquare/cropped_videos'  # Folder with videos
+output_folder = 'SortingHeightAdvanced/BlueSquare/sampled_frames'
+num_samples = 5
 
 os.makedirs(output_folder, exist_ok=True)
 
@@ -39,7 +39,7 @@ for video_path in video_files:
         if not saved_any_frame:
             os.makedirs(video_output_folder, exist_ok=True)
             saved_any_frame = True
-        output_path = os.path.join(video_output_folder, f"frame_{idx}.jpg")
+        output_path = os.path.join(video_output_folder, f"frame_{idx+1}.jpg")
         cv2.imwrite(output_path, frame)
         saved_frames.append(idx)
 

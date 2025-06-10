@@ -2,8 +2,8 @@
 setlocal EnableDelayedExpansion
 
 :: Set input and output folders (modify these)
-set INPUT_FOLDER=SortingHeightAdvanced\test\org_videos
-set OUTPUT_FOLDER=SortingHeightAdvanced\test\cropped_videos
+set INPUT_FOLDER=SortingHeightAdvanced\Pallet
+set OUTPUT_FOLDER=SortingHeightAdvanced\Pallet\cropped_videos
 
 :: Known width and height (update these if needed)
 set WIDTH=1920
