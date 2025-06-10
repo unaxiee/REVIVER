@@ -6,7 +6,7 @@ You are observing a T-shaped conveyor-based sorting system in a factory. The sys
 2. A turntable at the center left.
 3. A vertical conveyor on the left, which has a top and bottom section.
 
-Each white box with a wooden pallet underneath is intended to follow this target movement sequence:
+The white box with a wooden pallet underneath is intended to follow this target movement sequence:
 
 1. It moves from right to left along the horizontal conveyor.
 2. It is loaded onto the turntable.

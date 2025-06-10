@@ -19,31 +19,34 @@ processor = AutoProcessor.from_pretrained(
 )
 print('processor ready')
 
-base_single_frame_prompt = (
-    "You're overlooking a T-shaped system, "
-    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor) "
-    "meeting at a central turntable. "
-    "Describe where the {complete_item} is in the image without mentioning the movement of the {item}."
+prompt_text = (
+"You are observing a T-shaped conveyor-based sorting system in a factory. The system includes: "
+"1. A horizontal conveyor on the right side, where each item starts. "
+"2. A turntable at the center left. "
+"3. A vertical conveyor on the left, which has a top and bottom section. "
+
+"The white box with a wooden pallet underneath is intended to follow this target movement sequence: "
+"1. It moves from right to left along the horizontal conveyor. "
+"2. It is loaded onto the turntable. "
+"3. The turntable rotates. "
+"4. It is unloaded onto the vertical conveyor. "
+"5. It moves upwards to the top end of the vertical conveyor (this is the final correct destination). "
+
+" Your Task: Frame-by-Frame Analysis Rules "
+" Please carefully analyze a sequence of uniformly sampled frames from a video. For each frame: "
+
+"* Describe exactly where the box is (e.g., rightmost of horizontal conveyor, on the turntable, misaligned, at top of vertical conveyor). "
+"* Only describe movement when it is visibly shown between frames. "
+"* Do not assume any transition or motion unless it is clearly visible. "
+"* Do not infer box behavior from previous sequences — treat each sequence as isolated. "
+
+"Pay close attention to: "
+" * Whether the turntable is rotated (identify based on changes in arrow/groove direction or box orientation). "
+" * Box alignment and tilt, especially near transitions (turntable entry/exit, vertical conveyor handoff). "
+" * Partial placements on the turntable or conveyors. "
+
+" Confirm whether the box reaches the correct final destination (top of the vertical conveyor)."
 )
-base_multiple_frames_prompt = (
-    "You're overlooking a T-shaped system, "
-    "with three conveyors (long horizontal conveyor, short top vertical conveyor, short bottom vertical conveyor) "
-    "meeting at a central turntable. "
-    "Describe where the {complete_item} is in each image. Don't assume the {item} stay at the same place in all images."
-)
-item_dict = {
-    "blue_square": ("blue item with a wooden pallet under it", "blue item"),
-    "green_square": ("green item with a wooden pallet under it", "green item"),
-    "pallet": ("wooden pallet", "pallet"),
-    "white_box": ("white box with a wooden pallet under it", "white box"),
-    "yellow_box": ("yellow box with a wooden pallet under it", "yellow box")
-}
-prompt_text_single_frame_prompt_dict = {
-    k: base_single_frame_prompt.format(complete_item=v[0], item=v[1]) for k, v in item_dict.items()
-}
-prompt_text_multiple_frames_prompt_dict = {
-    k: base_multiple_frames_prompt.format(complete_item=v[0], item=v[1]) for k, v in item_dict.items()
-}
 print('prompt text ready')
 
 log_file = 'output_query_frame.log'
@@ -51,72 +54,52 @@ log_file = 'output_query_frame.log'
 user_define_frames = {
     1: [8],
     2: [0, 8],
-    3: [0, 5, 8]
+    3: [0, 5, 8],
+    5: [0, 2, 4, 6, 8]
 }
 
 with open(log_file, 'a', encoding='utf-8') as f:
     for frame_folder in os.listdir('sampled_frames'):
         print(frame_folder)
-        f.write(f"=== Item: {frame_folder} ===\n\n")
+        f.write(f"=== Manipulation: {frame_folder} ===\n\n")
 
-        videos = set()
-        for frame in os.listdir('sampled_frames/' + frame_folder):
-            videos.add(frame.split('_frame_')[0])
+        # Messages containing a local video path and a text query
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    *[
+                        {"type": "image", "image": f"sampled_frames/{frame_folder}/frame_{i}.jpg"}
+                        for i in user_define_frames[5]
+                    ],
+                    {"type": "text", "text": prompt_text},
+                ],
+            }
+        ]
 
-        for video in videos:
-            print(video)
-            f.write(f"=== Manipulation: {video} ===\n\n")
+        # Preparation for inference
+        text = processor.apply_chat_template(
+            messages, tokenize=False, add_generation_prompt=True
+        )
+        image_inputs, video_inputs = process_vision_info(messages)
+        inputs = processor(
+            text=[text],
+            images=image_inputs,
+            videos=video_inputs,
+            padding=True,
+            return_tensors="pt",
+        )
+        inputs = inputs.to("cuda")
 
-            # Max 8 images for one A100 80G GPU
-            for num_frame in range(1, 9):
-                if num_frame <= 3:
-                    query_frames = user_define_frames[num_frame]
-                else:
-                    query_frames = np.linspace(0, 9, num_frame, dtype=int).tolist()
-
-                if num_frame == 1:
-                    prompt_text = prompt_text_single_frame_prompt_dict[frame_folder]
-                else:
-                    prompt_text = prompt_text_multiple_frames_prompt_dict[frame_folder]
-
-                # Messages containing a local video path and a text query
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            *[
-                                {"type": "image", "image": f"sampled_frames/{frame_folder}/{video}_frame_{i}.jpg"}
-                                for i in query_frames
-                            ],
-                            {"type": "text", "text": prompt_text},
-                        ],
-                    }
-                ]
-
-                # Preparation for inference
-                text = processor.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                )
-                image_inputs, video_inputs = process_vision_info(messages)
-                inputs = processor(
-                    text=[text],
-                    images=image_inputs,
-                    videos=video_inputs,
-                    padding=True,
-                    return_tensors="pt",
-                )
-                inputs = inputs.to("cuda")
-
-                # Inference: Generation of the output
-                generated_ids = model.generate(**inputs, max_new_tokens=512)
-                generated_ids_trimmed = [
-                    out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-                ]
-                output_text = processor.batch_decode(
-                    generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-                )
-                
-                f.write(f"=== Number of frames: {num_frame} ===\n")
-                for line in output_text:
-                    f.write(line + "\n")
-                f.write('\n')
+        # Inference: Generation of the output
+        generated_ids = model.generate(**inputs, max_new_tokens=1000)
+        generated_ids_trimmed = [
+            out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
+        ]
+        output_text = processor.batch_decode(
+            generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
+        )
+        
+        for line in output_text:
+            f.write(line + "\n")
+        f.write('\n')
