@@ -20,43 +20,42 @@ processor = AutoProcessor.from_pretrained(
 print('processor ready')
 
 prompt_text = (
-"You are observing a T-shaped conveyor-based sorting system in a factory. The system includes: "
-"1. A horizontal conveyor on the right side, where each item starts. "
-"2. A turntable at the center left. "
-"3. A vertical conveyor on the left, which has a top and bottom section. "
+    "You are observing a T-shaped conveyor-based sorting system in a factory. "
 
-"The white box with a wooden pallet underneath is intended to follow this target movement sequence: "
-"1. It moves from right to left along the horizontal conveyor. "
-"2. It is loaded onto the turntable. "
-"3. The turntable rotates. "
-"4. It is unloaded onto the vertical conveyor. "
-"5. It moves upwards to the top end of the vertical conveyor (this is the final correct destination). "
+    "## System Components "
+        "1. Horizontal Conveyor (Right Side) "
+            "- Begins at the far right end. "
+            "- Ends at the circular boundary of the turntable. "
 
-" Your Task: Frame-by-Frame Analysis Rules "
-" Please carefully analyze a sequence of uniformly sampled frames from a video. For each frame: "
+        "2. Turntable (Center) "
+            "- A circular rotating platform that connects the horizontal and vertical conveyors. "
+            "- The outer boundary is defined by a pale ring encasing the rotating platform. "
+            "- Two side/guide rails are mounted on the turntable surface to secure item alignment during rotation. Their orientation indicates whether the turntable is rotated (horizontal = unrotated; vertical = rotated 90°). "
 
-"* Describe exactly where the box is (e.g., rightmost of horizontal conveyor, on the turntable, misaligned, at top of vertical conveyor). "
-"* Only describe movement when it is visibly shown between frames. "
-"* Do not assume any transition or motion unless it is clearly visible. "
-"* Do not infer box behavior from previous sequences — treat each sequence as isolated. "
+        "3. Vertical Conveyor (Left Side) "
+            "- Extends vertically and connects to the turntable. "
+            "- Composed of a top section and bottom section. "
 
-"Pay close attention to: "
-" * Whether the turntable is rotated (identify based on changes in arrow/groove direction or box orientation). "
-" * Box alignment and tilt, especially near transitions (turntable entry/exit, vertical conveyor handoff). "
-" * Partial placements on the turntable or conveyors. "
+    "## Frame Analysis Instructions "
+        "For each individual frame: "
+            "- Treat each frame completely individual. "
+            "- Describe exactly where the blue item with a wooden pallet underneath is, using clear and precise terms such as: "
+                "- \"At right end of horizontal conveyor\" "
+                "- \"Partially on turntable\" "
+                "- \"Fully on turntable\" "
+                "- \"At top/bottom of vertical conveyor\" "
+                "- \"Misaligned\" or \"tilted\" (if applicable) "
 
-" Confirm whether the box reaches the correct final destination (top of the vertical conveyor)."
+    "## Key Observational Priorities "
+        "- If the item is fully or partially on the turntable, decide whether the turntable is rotated: "
+            "- Check for turntable guide rail direction. "
+        "- Assess whether the item is partially or fully on a given component using boundary rules. "
+        "- Watch for any tilt or misalignment, especially at transfer points (e.g., turntable entrance/exit). "
+        "- Confirm whether the item reaches the bottom of the vertical conveyor — the final correct position. "
 )
 print('prompt text ready')
 
 log_file = 'output_query_frame.log'
-
-user_define_frames = {
-    1: [8],
-    2: [0, 8],
-    3: [0, 5, 8],
-    5: [0, 2, 4, 6, 8]
-}
 
 with open(log_file, 'a', encoding='utf-8') as f:
     for frame_folder in os.listdir('sampled_frames'):
@@ -68,10 +67,7 @@ with open(log_file, 'a', encoding='utf-8') as f:
             {
                 "role": "user",
                 "content": [
-                    *[
-                        {"type": "image", "image": f"sampled_frames/{frame_folder}/frame_{i}.jpg"}
-                        for i in user_define_frames[5]
-                    ],
+                    {"type": "image", "image": f"sampled_frames/{frame_folder}/frame_5.jpg"},
                     {"type": "text", "text": prompt_text},
                 ],
             }
