@@ -55,7 +55,7 @@ prompt_text = (
 )
 print('prompt text ready')
 
-log_file = 'output_query_frame.log'
+log_file = 'output_query_single_frame.log'
 
 with open(log_file, 'a', encoding='utf-8') as f:
     for frame_folder in os.listdir('sampled_frames'):

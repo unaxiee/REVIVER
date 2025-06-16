@@ -21,4 +21,4 @@ export TRANSFORMERS_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
 export HF_HUB_CACHE=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/hf_cache
 export TMPDIR=/storage/home/hcoda1/5/yxie405/p-szonouz6-0/tmp
 
-srun python query_single_frame.py
+srun python query_frame_sequence.py
