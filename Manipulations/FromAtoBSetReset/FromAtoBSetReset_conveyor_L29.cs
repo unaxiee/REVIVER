@@ -8,14 +8,14 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class FromAtoBSetReset : Controller
+    public class FromAtoBSetReset_conveyor_L29 : Controller
     {
         MemoryBit conveyor = MemoryMap.Instance.GetBit("Conveyor", MemoryType.Output);
 
         MemoryBit sensorA = MemoryMap.Instance.GetBit("Sensor A", MemoryType.Input);
         MemoryBit sensorB = MemoryMap.Instance.GetBit("Sensor B", MemoryType.Input);
 
-        public FromAtoBSetReset()
+        public FromAtoBSetReset_conveyor_L29()
         {
             conveyor.Value = false;
         }
@@ -26,7 +26,7 @@ namespace Controllers
                 conveyor.Value = true;
 
             if (!sensorB.Value)
-                conveyor.Value = false;
+                conveyor.Value = !(false);
         }
     }
 }

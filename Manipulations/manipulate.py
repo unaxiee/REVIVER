@@ -1,8 +1,12 @@
 import re
 from collections import defaultdict
+import os
+
+scene = "QueueOfItems"
+os.makedirs(scene, exist_ok=True)
 
 # Read original file
-with open("Scenes/SortingHeightAdvanced.cs", "r") as f:
+with open(f"../Scenes/{scene}.cs", "r") as f:
     lines = f.readlines()
 
 # Match: <stateVar> = State.<StateX>;
@@ -17,10 +21,10 @@ for line in lines:
 # Convert sets to sorted lists
 state_enum_map = {k: sorted(v) for k, v in state_enum_map.items()}
 
-
 # Regex patterns
-output_pattern = re.compile(r"(\s*)(\w+)\.Value\s*=\s*(.+?);")
-internal_pattern = re.compile(r"(\s*)(bool|var)\s+(\w+)\s*=\s*([^;]+);")
+output_pattern = re.compile(r"(\s*)(?!emitter\b)(\w+)\.Value\s*=\s*(.+?);")
+local_internal_pattern = re.compile(r"(\s*)(bool)\s+(\w+)\s*=\s*([^;]+);")
+global_internal_pattern = re.compile(r"(\s*)((?!stopScene\b)\w+)\s*=\s*([^;]+);")
 
 # State to track if we are inside Execute()
 inside_execute = False
@@ -48,9 +52,12 @@ for i, line in enumerate(lines):
             elif (m := state_pattern.match(line)):
                 indent, var, rhs = m.groups()
                 assignments.append(("state", i, indent, var.strip(), rhs.strip()))
-            elif (m := internal_pattern.match(line)):
+            elif (m := local_internal_pattern.match(line)):
                 indent, vtype, var, rhs = m.groups()
-                assignments.append(("internal", i, indent, var.strip(), rhs.strip(), vtype.strip()))
+                assignments.append(("local_internal", i, indent, var.strip(), rhs.strip(), vtype.strip()))
+            elif (m := global_internal_pattern.match(line)):
+                indent, var, rhs = m.groups()
+                assignments.append(("global_internal", i, indent, var.strip(), rhs.strip()))
 
 print(f"Found {len(assignments)} assignments.")
 
@@ -73,14 +80,14 @@ for assignment in assignments:
             new_lines[line_num] = new_line
 
             class_suffix = f'{var}_{rhs}_to_{alter_state}_L{line_num+1}'
-            new_class_name = f'SortingHeightAdvanced_{class_suffix}'
+            new_class_name = f'{scene}_{class_suffix}'
             for i, line in enumerate(new_lines):
-                if 'class SortingHeightAdvanced' in line:
-                    new_lines[i] = line.replace('SortingHeightAdvanced', new_class_name)
-                elif 'SortingHeightAdvanced(' in line:
-                    new_lines[i] = line.replace('SortingHeightAdvanced(', f'{new_class_name}(')
+                if f'class {scene}' in line:
+                    new_lines[i] = line.replace(scene, new_class_name)
+                elif f'{scene}(' in line:
+                    new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
 
-            with open(f'Manipulations/{new_class_name}.cs', 'w') as f:
+            with open(f'{scene}/{new_class_name}.cs', 'w') as f:
                 f.writelines(new_lines)
         
     else:
@@ -88,19 +95,21 @@ for assignment in assignments:
         class_suffix = f'{var}_L{line_num+1}'
         if atype == 'output':
             new_line = f'{indent}{var}.Value = !({rhs});\n'
-        elif atype == 'internal':
+        elif atype == 'local_internal':
             new_line = f'{indent}{vtype} {var} = !({rhs});\n'
+        elif atype == 'global_internal':
+            new_line = f'{indent}{var} = !({rhs});\n'
     
         new_lines[line_num] = new_line
 
-        new_class_name = f'SortingHeightAdvanced_{class_suffix}'
+        new_class_name = f'{scene}_{class_suffix}'
         for i, line in enumerate(new_lines):
-            if 'class SortingHeightAdvanced' in line:
-                new_lines[i] = line.replace('SortingHeightAdvanced', new_class_name)
-            elif 'SortingHeightAdvanced(' in line:
-                new_lines[i] = line.replace('SortingHeightAdvanced(', f'{new_class_name}(')
+            if f'class {scene}' in line:
+                new_lines[i] = line.replace(scene, new_class_name)
+            elif f'{scene}(' in line:
+                new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
 
-        with open(f'Manipulations/{new_class_name}.cs', 'w') as f:
+        with open(f'{scene}/{new_class_name}.cs', 'w') as f:
             f.writelines(new_lines)
 
 print("All versions generated.")

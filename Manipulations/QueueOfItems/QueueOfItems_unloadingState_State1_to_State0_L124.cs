@@ -8,7 +8,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class QueueOfItems : Controller
+    public class QueueOfItems_unloadingState_State1_to_State0_L124 : Controller
     {
         MemoryBit entryConveyor = MemoryMap.Instance.GetBit("Entry conveyor", MemoryType.Output);
         MemoryBit bufferConveyor = MemoryMap.Instance.GetBit("Buffer conveyor", MemoryType.Output);
@@ -37,7 +37,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public QueueOfItems()
+        public QueueOfItems_unloadingState_State1_to_State0_L124()
         {
             entryConveyor.Value = false;
             bufferConveyor.Value = false;
@@ -121,7 +121,7 @@ namespace Controllers
                     bufferConveyor.Value = true;
 
                     if (ftAtExit.Q)
-                        unloadingState = State.State1;
+                        unloadingState = State.State0;
                 }
                 else if (unloadingState == State.State1)
                 {

@@ -8,13 +8,13 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class FromAToB : Controller
+    public class FromAtoB : Controller
     {
         MemoryBit conveyor = MemoryMap.Instance.GetBit("Conveyor", MemoryType.Output);
 
         MemoryBit sensor = MemoryMap.Instance.GetBit("Sensor", MemoryType.Input);
 
-        public FromAToB()
+        public FromAtoB()
         {
             conveyor.Value = false;
         }

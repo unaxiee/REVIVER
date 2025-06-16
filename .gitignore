@@ -8,4 +8,6 @@ pace_job/openai_api_key
 Scripts/
 share/
 Videos/SortingHeightAdvanced/
+Videos/FromAtoBSetReset
+Videos/QueueOfItems
 pyvenv.cfg
