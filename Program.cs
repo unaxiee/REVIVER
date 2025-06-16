@@ -32,7 +32,7 @@ namespace Controllers
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            string manipulationFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations\SortingHeightAdvanced";
+            string manipulationFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations\QueueOfItems";
             string[] manipulationFiles = Directory.GetFiles(manipulationFolder, "*.cs");
             var classNames = manipulationFiles
                 .Select(Path.GetFileNameWithoutExtension)
@@ -50,6 +50,8 @@ namespace Controllers
 
             foreach (var name in classNames)
             {
+                //Controller controller = new QueueOfItems();
+
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
 
@@ -67,7 +69,6 @@ namespace Controllers
 
                 int executionCount = 0;
 
-                //while (!(Console.KeyAvailable && (Console.ReadKey(false).Key == ConsoleKey.Escape)) && !controller.stopSignal)
                 while (!controller.stopSignal)
                 {
                     //Update the memory map before executing the controller
@@ -76,6 +77,8 @@ namespace Controllers
                     if (running.Value)
                     {
                         stopwatch.Stop();
+
+                        controller.executionCount = executionCount;
 
                         controller.Execute((int)stopwatch.ElapsedMilliseconds);
 
@@ -116,13 +119,12 @@ namespace Controllers
             start.Value = false;
 
             MemoryMap.Instance.Update();
-            //MemoryMap.Instance.Dispose();
         }
 
         static void CreateRecording(string videoName)
         {
-            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\SortingHeightAdvanced\HighBox";
-            string videoPath = Path.Combine(videoFolder, $"{videoName}_HighBox.mp4");
+            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\QueueOfItems";
+            string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
             if (File.Exists(videoPath))
                 File.Delete(videoPath);
             _rec = Recorder.CreateRecorder();

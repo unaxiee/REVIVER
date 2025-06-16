@@ -11,5 +11,7 @@ namespace Controllers
         public abstract void Execute(int elapsedMilliseconds);
 
         public virtual bool stopSignal => false;
+
+        public virtual int executionCount { get; set; } = 0;
     }
 }
