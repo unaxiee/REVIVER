@@ -8,7 +8,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class Assembler : Controller
+    public class Assembler_lidState_State4_to_State2_L95 : Controller
     {
         MemoryBit lidsConveyor = MemoryMap.Instance.GetBit("Lids conveyor", MemoryType.Output);
         MemoryBit moveX = MemoryMap.Instance.GetBit("Move X", MemoryType.Output);
@@ -44,7 +44,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public Assembler()
+        public Assembler_lidState_State4_to_State2_L95()
         {
             lidsConveyor.Value = false;
             basesConveyor.Value = true;
@@ -92,7 +92,7 @@ namespace Controllers
             else if (lidState == State.State3)
             {
                 if (itemDetected.Value)
-                    lidState = State.State4;
+                    lidState = State.State2;
             }
             else if (lidState == State.State4)
             {

@@ -8,7 +8,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class Assembler : Controller
+    public class Assembler_posRaiseBase_L170 : Controller
     {
         MemoryBit lidsConveyor = MemoryMap.Instance.GetBit("Lids conveyor", MemoryType.Output);
         MemoryBit moveX = MemoryMap.Instance.GetBit("Move X", MemoryType.Output);
@@ -44,7 +44,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public Assembler()
+        public Assembler_posRaiseBase_L170()
         {
             lidsConveyor.Value = false;
             basesConveyor.Value = true;
@@ -167,7 +167,7 @@ namespace Controllers
             {
                 basesConveyor.Value = true;
                 clampBase.Value = false;
-                posRaiseBase.Value = true;
+                posRaiseBase.Value = !(true);
 
                 if (ftPartLeaving.Q || baseAtPlace.Value)
                     baseState = State.State0;
