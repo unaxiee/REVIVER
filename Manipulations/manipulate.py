@@ -2,24 +2,32 @@ import re
 from collections import defaultdict
 import os
 
-scene = "QueueOfItems"
+scene = "BufferStation"
 os.makedirs(scene, exist_ok=True)
 
 # Read original file
 with open(f"../Scenes/{scene}.cs", "r") as f:
     lines = f.readlines()
 
+# Match MemoryFloat <var_name> = ...
+float_pattern = re.compile(r'MemoryFloat\s+(\w+)\s*=')
+float_var_list = []
 # Match: <stateVar> = State.<StateX>;
 state_pattern = re.compile(r"(\s*)(\w*State)\s*=\s*State\.(State\w+);")
 # Dictionary to hold per-variable valid states
 state_enum_map = defaultdict(set)
 for line in lines:
+    match_float = float_pattern.findall(line)
     match_state = state_pattern.search(line)
+    if match_float:
+        float_var_list.extend(match_float)
     if match_state:
         _, var_name, state_value = match_state.groups()
         state_enum_map[var_name].add(state_value)
 # Convert sets to sorted lists
 state_enum_map = {k: sorted(v) for k, v in state_enum_map.items()}
+print('float variable', float_var_list)
+print('state variable', state_enum_map)
 
 # Regex patterns
 output_pattern = re.compile(r"(\s*)(?!emitter\b)(\w+)\.Value\s*=\s*(.+?);")
@@ -80,6 +88,23 @@ for assignment in assignments:
             new_lines[line_num] = new_line
 
             class_suffix = f'{var}_{rhs}_to_{alter_state}_L{line_num+1}'
+            new_class_name = f'{scene}_{class_suffix}'
+            for i, line in enumerate(new_lines):
+                if f'class {scene}' in line:
+                    new_lines[i] = line.replace(scene, new_class_name)
+                elif f'{scene}(' in line:
+                    new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
+
+            with open(f'{scene}/{new_class_name}.cs', 'w') as f:
+                f.writelines(new_lines)
+
+    elif atype == 'output' and var in float_var_list:
+        for alter_value in list(range(1, 11, 3)):
+            new_lines = lines.copy()
+            new_line = f'{indent}{var}.Value = {alter_value};\n'
+            new_lines[line_num] = new_line
+
+            class_suffix = f'{var}_{rhs}_to_{alter_value}_L{line_num+1}'
             new_class_name = f'{scene}_{class_suffix}'
             for i, line in enumerate(new_lines):
                 if f'class {scene}' in line:

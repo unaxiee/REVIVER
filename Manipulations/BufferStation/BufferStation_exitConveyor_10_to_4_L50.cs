@@ -8,7 +8,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class BufferStation : Controller
+    public class BufferStation_exitConveyor_10_to_4_L50 : Controller
     {
         MemoryFloat bufferConveyor = MemoryMap.Instance.GetFloat("Buffer conveyor", MemoryType.Output);
         MemoryFloat exitConveyor = MemoryMap.Instance.GetFloat("Exit conveyor", MemoryType.Output);
@@ -26,7 +26,7 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public BufferStation()
+        public BufferStation_exitConveyor_10_to_4_L50()
         {
             bufferConveyor.Value = 0;
             exitConveyor.Value = 10;
@@ -47,7 +47,7 @@ namespace Controllers
                 if (!atBufferExit.Value)
                 {
                     stopBlade.Value = false;
-                    exitConveyor.Value = 10;
+                    exitConveyor.Value = 4;
                     bufferState = State.State1;
                 }
             }
