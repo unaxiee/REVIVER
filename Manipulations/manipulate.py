@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 import os
 
-scene = "BufferStation"
+scene = "ProductionLine"
 os.makedirs(scene, exist_ok=True)
 
 # Read original file
