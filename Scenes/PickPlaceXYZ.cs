@@ -20,8 +20,8 @@ namespace Controllers
         MemoryFloat spX = MemoryMap.Instance.GetFloat("SP X", MemoryType.Output);
         MemoryFloat spY = MemoryMap.Instance.GetFloat("SP Y", MemoryType.Output);
         MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
-        MemoryBit exitYellow = MemoryMap.Instance.GetBit("Exit yellow", MemoryType.Output);
-        MemoryBit exitGreen = MemoryMap.Instance.GetBit("Exit green", MemoryType.Output);
+        // MemoryBit exitYellow = MemoryMap.Instance.GetBit("Exit yellow", MemoryType.Output);
+        // MemoryBit exitGreen = MemoryMap.Instance.GetBit("Exit green", MemoryType.Output);
 
         MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
         MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
@@ -43,12 +43,16 @@ namespace Controllers
 
         int counter;
 
+        int exitBox = 0;
+
+        private bool stopScene = false;
+
         public PickPlaceXYZ()
         {
             partConveyor.Value = false;
             boxConveyor.Value = false;
-            exitYellow.Value = false;
-            exitGreen.Value = true;
+            // exitYellow.Value = false;
+            // exitGreen.Value = true;
 
             spX.Value = 0;
             spY.Value = 0;
@@ -69,8 +73,8 @@ namespace Controllers
             partConveyor.Value = false;
             boxConveyor.Value = false;
             exitConveyor.Value = false;
-            exitYellow.Value = false;
-            exitGreen.Value = true;
+            // exitYellow.Value = false;
+            // exitGreen.Value = true;
 
             #region X & Y Movement
 
@@ -146,7 +150,7 @@ namespace Controllers
             }
             else if (pickingState == State.State5)
             {
-                spZ.Value = 0;
+                spZ.Value = 0f;
 
                 if (Near(posZ.Value, spZ.Value, 0.01f))
                     pickingState = State.State0;
@@ -184,7 +188,7 @@ namespace Controllers
             }
             else if (grabState == State.State3)
             {
-                spZ.Value = 0;
+                spZ.Value = 0f;
 
                 if (Near(spZ.Value, posZ.Value, 0.01f))
                     grabState = State.State0;
@@ -206,6 +210,7 @@ namespace Controllers
                 {
                     counter = 0;
                     exitConveyor.Value = false;
+                    exitBox++;
                 }
             }
             else
@@ -217,15 +222,19 @@ namespace Controllers
                 }
             }
 
-            if (pickingState == State.State0)
-            {
-                exitYellow.Value = false;
-                exitGreen.Value = true;
-            }
-            else
-            {
-                exitYellow.Value = true;
-                exitGreen.Value = false;
+            // if (pickingState == State.State0)
+            // {
+            //     exitYellow.Value = false;
+            //     exitGreen.Value = true;
+            // }
+            // else
+            // {
+            //     exitYellow.Value = true;
+            //     exitGreen.Value = false;
+            // }
+
+            if (exitBox == 1) {
+                stopScene = true;
             }
 
             #endregion
@@ -235,5 +244,7 @@ namespace Controllers
         {
             return Math.Abs(val1 - val2) < delta;
         }
+
+        public override bool stopSignal => stopScene;
     }
 }

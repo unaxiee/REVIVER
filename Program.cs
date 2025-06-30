@@ -32,7 +32,8 @@ namespace Controllers
         /// <param name="args"></param>
         static void Main(string[] args)
         {
-            string manipulationFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations\QueueOfItems";
+            string sceneName = "PickPlaceXYZ";
+            string manipulationFolder = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations\{sceneName}";
             string[] manipulationFiles = Directory.GetFiles(manipulationFolder, "*.cs");
             var classNames = manipulationFiles
                 .Select(Path.GetFileNameWithoutExtension)
@@ -50,12 +51,20 @@ namespace Controllers
 
             foreach (var name in classNames)
             {
-                //Controller controller = new QueueOfItems();
+                //Controller controller = new PickPlaceXYZ();
+
+                string videoFolder = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\{sceneName}";
+                string videoPath = Path.Combine(videoFolder, $"{name}.mp4");
+                if (File.Exists(videoPath))
+                {
+                    System.Diagnostics.Debug.WriteLine($"[SKIP] Video already exists for {name}, skipping controller.");
+                    continue;
+                }
 
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
 
-                CreateRecording(name);
+                CreateRecording(sceneName, name);
 
                 //Forcing a rising edge on the start MemoryBit so FACTORY I/O can detect it
                 SwitchToRun(start);
@@ -121,12 +130,10 @@ namespace Controllers
             MemoryMap.Instance.Update();
         }
 
-        static void CreateRecording(string videoName)
+        static void CreateRecording(string sceneName, string videoName)
         {
-            string videoFolder = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\QueueOfItems";
+            string videoFolder = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\{sceneName}";
             string videoPath = Path.Combine(videoFolder, $"{videoName}.mp4");
-            if (File.Exists(videoPath))
-                File.Delete(videoPath);
             _rec = Recorder.CreateRecorder();
             _rec.OnRecordingComplete += Rec_OnRecordingComplete;
             _rec.OnRecordingFailed += Rec_OnRecordingFailed;
