@@ -32,7 +32,7 @@ trigger_q_usage_pattern = re.compile(r'\b(\w+)\.Q\b')
 bool_usage_lines = defaultdict(list)
 trigger_q_usage_lines = defaultdict(list)
 for i, line in enumerate(lines):
-    if '.CLK' in line:
+    if ".CLK" in line:
         continue # skip lines that are CLK input assignments
     for m in value_usage_pattern.finditer(line):
         var = m.group(1)
@@ -47,9 +47,9 @@ exit(0)
 
 # 4. Create one manipulation per variable
 manip_types = {
-    'neg': lambda var: f'!{var}',
-    'true': lambda var: 'true',
-    'false': lambda var: 'false'
+    "neg": lambda var: f"!{var}",
+    "true": lambda var: "true",
+    "false": lambda var: "false"
 }
 for var, line_nums in bool_usage_lines.items():
     for line_idx in line_nums:
@@ -64,12 +64,12 @@ for var, line_nums in bool_usage_lines.items():
 
             new_class_name = f"{scene}_{var}_{manip_type}_L{line_idx+1}"
             for i, line in enumerate(new_lines):
-                if f'class {scene}' in line:
+                if f"class {scene}" in line:
                     new_lines[i] = line.replace(scene, new_class_name)
-                elif f'{scene}(' in line:
-                    new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
+                elif f"{scene}(" in line:
+                    new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-            with open(f'{scene}/{new_class_name}.cs', 'w') as f:
+            with open(f"{scene}/{new_class_name}.cs", "w") as f:
                 f.writelines(new_lines)
 
 
@@ -86,10 +86,10 @@ for var, line_nums in trigger_q_usage_lines.items():
 
             new_class_name = f"{scene}_{var}_{manip_type}_L{line_idx+1}"
             for i, line in enumerate(new_lines):
-                if f'class {scene}' in line:
+                if f"class {scene}" in line:
                     new_lines[i] = line.replace(scene, new_class_name)
-                elif f'{scene}(' in line:
-                    new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
+                elif f"{scene}(" in line:
+                    new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-            with open(f'{scene}/{new_class_name}.cs', 'w') as f:
+            with open(f"{scene}/{new_class_name}.cs", "w") as f:
                 f.writelines(new_lines)
