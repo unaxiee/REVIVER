@@ -44,7 +44,7 @@ for var in state_enum_map:
     state_enum_map[var].add("State31")  # Assume State.Invalid is not used anywhere validly
 print(state_enum_map)
 
-# 3: Generate manipulation variants
+# 4: Generate manipulation variants
 for line_idx, indent, state_name, original_state in state_assign_lines:
     for replacement in sorted(state_enum_map[state_name]):
         if replacement == original_state:
