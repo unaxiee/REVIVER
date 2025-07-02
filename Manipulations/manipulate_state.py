@@ -39,6 +39,11 @@ for i in range(execute_start, execute_end + 1):
         state_enum_map[state_name].add(state_value)
         state_assign_lines.append((i, indent, state_name, state_value))
 
+# 3: Add invalid state to each state variable
+for var in state_enum_map:
+    state_enum_map[var].add("State31")  # Assume State.Invalid is not used anywhere validly
+print(state_enum_map)
+
 # 3: Generate manipulation variants
 for line_idx, indent, state_name, original_state in state_assign_lines:
     for replacement in sorted(state_enum_map[state_name]):
@@ -58,5 +63,3 @@ for line_idx, indent, state_name, original_state in state_assign_lines:
 
         with open(f"{scene}/{new_class_name}.cs", "w") as f:
             f.writelines(new_lines)
-        
-        exit(0)
