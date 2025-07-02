@@ -43,7 +43,6 @@ for i, line in enumerate(lines):
         if trig in edge_triggers:
             trigger_q_usage_lines[trig].append(i)
 print(bool_usage_lines, trigger_q_usage_lines)
-exit(0)
 
 # 4. Create one manipulation per variable
 manip_types = {
