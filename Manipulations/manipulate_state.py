@@ -1,79 +1,62 @@
 import re
-from collections import defaultdict
 import os
+from collections import defaultdict
 
 scene = "PickPlaceXYZ"
 os.makedirs(scene, exist_ok=True)
 
-# Read original file
+# Read source file
 with open(f"../Scenes/{scene}.cs", "r") as f:
     lines = f.readlines()
 
-# Match: <stateVar> = State.<StateX>;
-state_pattern = re.compile(r"(\s*)(\w*State)\s*=\s*State\.(State\w+);")
-# Dictionary to hold per-variable valid states
-state_enum_map = defaultdict(set)
-for line in lines:
-    match_state = state_pattern.search(line)
-    if match_state:
-        _, var_name, state_value = match_state.groups()
-        state_enum_map[var_name].add(state_value)
-# Convert sets to sorted lists
-state_enum_map = {k: sorted(v) for k, v in state_enum_map.items()}
-print('state variable', state_enum_map)
-
-# State to track if we are inside Execute()
-inside_execute = False
+# 1: Locate Execute() method boundaries
+execute_start = None
 brace_count = 0
+for idx, line in enumerate(lines):
+    if "public override void Execute" in line:
+        execute_start = idx
+        break
+if execute_start is None:
+    raise ValueError("Execute() method not found.")
+# Count braces to find the end of Execute()
+for idx in range(execute_start, len(lines)):
+    brace_count += lines[idx].count('{') - lines[idx].count('}')
+    if brace_count == 0 and idx > execute_start:
+        execute_end = idx
+        break
+else:
+    raise ValueError("Could not find matching closing brace for Execute().")
 
-# Record line numbers and original lines
-assignments = []
-for i, line in enumerate(lines):
-    stripped = line.strip()
+# 2: Find state assignments within Execute()
+state_assign_pattern = re.compile(r"(\s*)(\w+)\s*=\s*State\.(State\w+);")
+state_enum_map = defaultdict(set)  # var_name -> set of valid states
+state_assign_lines = []  # stores (line_idx, indent, var_name, original_state)
 
-    # Enter Execute() method
-    if stripped.startswith("public override void Execute"):
-        inside_execute = True
-        continue
+for i in range(execute_start, execute_end + 1):
+    match = state_assign_pattern.search(lines[i])
+    if match:
+        indent, state_name, state_value = match.groups()
+        state_enum_map[state_name].add(state_value)
+        state_assign_lines.append((i, indent, state_name, state_value))
 
-    if inside_execute:
-        brace_count += line.count("{") - line.count("}")
-        if brace_count == 0:
-            break
-            
-        if "//" not in line:
-            if (m := state_pattern.match(line)):
-                indent, var, rhs = m.groups()
-                assignments.append((i, indent, var.strip(), rhs.strip()))
-
-print(f"Found {len(assignments)} assignments.")
-
-# Create a version for each assignment
-for assignment in assignments:
-    line_num = assignment[0]
-    indent = assignment[1]
-    var = assignment[2]
-    rhs = assignment[3]
-
-    valid_states = state_enum_map[var]
-    alter_states = [s for s in valid_states if s != rhs]
-    alter_states.append("State31")
-
-    for alter_state in alter_states:
+# 3: Generate manipulation variants
+for line_idx, indent, state_name, original_state in state_assign_lines:
+    for replacement in sorted(state_enum_map[state_name]):
+        if replacement == original_state:
+            continue
         new_lines = lines.copy()
-        new_line = f'{indent}{var} = State.{alter_state};\n'
-        new_lines[line_num] = new_line
+        new_lines[line_idx] = f"{indent}{state_name} = State.{replacement};\n"
 
-        class_suffix = f'{var}_{rhs}_to_{alter_state}_L{line_num+1}'
-        new_class_name = f'{scene}_{class_suffix}'
+        class_suffix = f"{state_name}_{original_state}_to_{replacement}_L{line_idx+1}"
+        new_class_name = f"{scene}_{class_suffix}"
+        print(new_class_name)
         for i, line in enumerate(new_lines):
-            if f'class {scene}' in line:
+            if f"class {scene}" in line:
                 new_lines[i] = line.replace(scene, new_class_name)
-            elif f'{scene}(' in line:
-                new_lines[i] = line.replace(f'{scene}(', f'{new_class_name}(')
+            elif f"{scene}(" in line:
+                new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-        with open(f'{scene}/{new_class_name}.cs', 'w') as f:
+        with open(f"{scene}/{new_class_name}.cs", "w") as f:
             f.writelines(new_lines)
-
-
-print("All versions generated.")
+        
+        exit(0)
