@@ -54,7 +54,6 @@ for line_idx, indent, state_name, original_state in state_assign_lines:
 
         class_suffix = f"{state_name}_{original_state}_to_{replacement}_L{line_idx+1}"
         new_class_name = f"{scene}_{class_suffix}"
-        print(new_class_name)
         for i, line in enumerate(new_lines):
             if f"class {scene}" in line:
                 new_lines[i] = line.replace(scene, new_class_name)
