@@ -203,7 +203,7 @@ namespace Controllers
 
             if (counter == 3)
             {
-                boxConveyor.Value = true;
+                // boxConveyor.Value = true;
                 exitConveyor.Value = true;
 
                 if (ftBoxAtPlace.Q)
