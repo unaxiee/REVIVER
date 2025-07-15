@@ -128,7 +128,8 @@ namespace Controllers
             SwitchToRun(start);
 
             //Uncomment ONLY one of the following lines to control the corresponding scene in FACTORY I/O
-            Controller controller = new PickPlaceXYZ_pickingState_State5_to_State31_L148();
+            Controller controller = new PickPlaceXYZ_partConveyor_L202();
+            string controllerName = controller.GetType().Name;
 
             System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
 
@@ -167,7 +168,10 @@ namespace Controllers
 
                     // 2. Change the controller
                     System.Diagnostics.Debug.WriteLine("Switching controller...");
-                    controller = new Recovery_PickPlaceXYZ_pickingState_State5_to_State31_L148(); // or any other controller
+                    string recoveryControllerName = $"Controllers.Recovery_{controllerName}";
+                    Type recoveryType = Type.GetType(recoveryControllerName);
+                    controller = (Controller)Activator.CreateInstance(recoveryType);
+                    //controller = new Recovery_PickPlaceXYZ_boxAtPlace_true_L85(); // or any other controller
 
                     // 3. Resume the scene
                     System.Diagnostics.Debug.WriteLine("Resuming scene...");
