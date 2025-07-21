@@ -10,11 +10,10 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class PickPlaceXYZ_grabState_State2_to_State0_L174 : Controller
+    public class Recovery_PickPlaceXYZ_pickingState_State4_to_State5_L129 : Controller
     {
         MemoryBit partConveyor = MemoryMap.Instance.GetBit("Part conveyor", MemoryType.Output);
-        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
+        MemoryBit boxConveyor = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1", MemoryType.Output);
         MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
         MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
         MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
@@ -37,27 +36,28 @@ namespace Controllers
         FTRIG ftPartAtPlace = new FTRIG();
         FTRIG ftBoxAtPlace = new FTRIG();
 
-        State pickingState = State.State0;
+        State pickingState = State.State3;
         State grabState = State.State0;
 
         TON grabTimer = new TON();
 
         int counter;
 
+        int exitBox = 0;
+
         private bool stopScene = false;
 
-        public PickPlaceXYZ_grabState_State2_to_State0_L174()
+        public Recovery_PickPlaceXYZ_pickingState_State4_to_State5_L129()
         {
             partConveyor.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
+            boxConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
 
-            spX.Value = 0;
-            spY.Value = 0;
+            spX.Value = 8.3f;
+            spY.Value = 5.5f;
             spZ.Value = 0;
-            grab.Value = false;
+            grab.Value = true;
 
             grabTimer.PT = 1000;
         }
@@ -71,8 +71,7 @@ namespace Controllers
             rtBoxAtPlace.CLK(!boxAtPlace.Value);
 
             partConveyor.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
+            boxConveyor.Value = false;
             exitConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
@@ -163,17 +162,17 @@ namespace Controllers
 
             if (grabState == State.State0)
             {
-                //Idle state
+               //Idle state
             }
             else if (grabState == State.State1)
             {
-                spZ.Value = 5.3f;
+               spZ.Value = 5.3f;
 
-                if (detected.Value)
-                {
-                    spZ.Value = posZ.Value;
-                    grabState = State.State0;
-                }
+               if (detected.Value)
+               {
+                   spZ.Value = posZ.Value;
+                   grabState = State.State2;
+               }
             }
             else if (grabState == State.State2)
             {
@@ -204,24 +203,21 @@ namespace Controllers
 
             if (counter == 3)
             {
-                //boxConveyorForward.Value = true;
-                if (!boxAtPlace.Value)
-                {
-                    boxConveyorForward.Value = true;
-                }
+                boxConveyor.Value = true;
                 exitConveyor.Value = true;
 
                 if (ftBoxAtPlace.Q)
                 {
-                    // counter = 0;
+                    counter = 0;
                     exitConveyor.Value = false;
+                    exitBox++;
                 }
             }
             else
             {
                 if (boxAtPlace.Value)
                 {
-                    boxConveyorForward.Value = true;
+                    boxConveyor.Value = true;
                     exitConveyor.Value = true;
                 }
             }
@@ -236,6 +232,10 @@ namespace Controllers
             //     exitYellow.Value = true;
             //     exitGreen.Value = false;
             // }
+
+            if (exitBox == 1) {
+                stopScene = true;
+            }
 
             #endregion
         }

@@ -13,7 +13,7 @@ namespace Controllers
     public class PickPlaceXYZ_pickingState_State4_to_State0_L129 : Controller
     {
         MemoryBit partConveyor = MemoryMap.Instance.GetBit("Part conveyor", MemoryType.Output);
-        MemoryBit boxConveyor = MemoryMap.Instance.GetBit("Box conveyor", MemoryType.Output);
+        MemoryBit boxConveyor = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1", MemoryType.Output);
         MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
         MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
         MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
