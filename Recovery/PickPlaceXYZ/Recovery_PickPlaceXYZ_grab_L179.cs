@@ -10,7 +10,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class PickPlaceXYZ_grab_L144 : Controller
+    public class Recovery_PickPlaceXYZ_grab_L179 : Controller
     {
         MemoryBit partConveyor = MemoryMap.Instance.GetBit("Part conveyor", MemoryType.Output);
         MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
@@ -44,20 +44,26 @@ namespace Controllers
 
         int counter;
 
+        int exitBox = 0;
+
         private bool stopScene = false;
 
-        public PickPlaceXYZ_grab_L144()
+        private bool recoveryDone = false;
+
+        public Recovery_PickPlaceXYZ_grab_L179()
         {
             partConveyor.Value = false;
             boxConveyorForward.Value = false;
             boxConveyorBackward.Value = false;
             // exitYellow.Value = false;
-            // exitGreen.Value = true;
+            // exitGreen.Value = true
 
-            spX.Value = 0;
-            spY.Value = 0;
+            spX.Value = 3.1f;
+            spY.Value = 5.3f;
             spZ.Value = 0;
             grab.Value = false;
+
+            counter = 0;
 
             grabTimer.PT = 1000;
         }
@@ -76,6 +82,12 @@ namespace Controllers
             exitConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
+
+            if (!recoveryDone)
+            {
+                recoveryLogic();
+                return;
+            }
 
             #region X & Y Movement
 
@@ -142,7 +154,7 @@ namespace Controllers
 
                 if (Near(posZ.Value, spZ.Value, 0.01f))
                 {
-                    grab.Value = !(false);
+                    grab.Value = false;
 
                     counter++;
 
@@ -204,17 +216,14 @@ namespace Controllers
 
             if (counter == 3)
             {
-                //boxConveyorForward.Value = true;
-                if (!boxAtPlace.Value)
-                {
-                    boxConveyorForward.Value = true;
-                }
+                boxConveyorForward.Value = true;
                 exitConveyor.Value = true;
 
                 if (ftBoxAtPlace.Q)
                 {
-                    // counter = 0;
+                    counter = 0;
                     exitConveyor.Value = false;
+                    exitBox++;
                 }
             }
             else
@@ -237,6 +246,10 @@ namespace Controllers
             //     exitGreen.Value = false;
             // }
 
+            if (exitBox == 1) {
+                stopScene = true;
+            }
+
             #endregion
         }
 
@@ -246,5 +259,16 @@ namespace Controllers
         }
 
         public override bool stopSignal => stopScene;
+
+        private void recoveryLogic()
+        {
+            boxConveyorBackward.Value = true;
+            if (ftBoxAtPlace.Q)
+            {
+                boxConveyorBackward.Value = false;
+                recoveryDone = true;
+            }
+
+        }
     }
 }

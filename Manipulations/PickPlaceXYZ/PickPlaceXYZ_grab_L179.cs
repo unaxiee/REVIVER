@@ -13,7 +13,8 @@ namespace Controllers
     public class PickPlaceXYZ_grab_L179 : Controller
     {
         MemoryBit partConveyor = MemoryMap.Instance.GetBit("Part conveyor", MemoryType.Output);
-        MemoryBit boxConveyor = MemoryMap.Instance.GetBit("Box conveyor", MemoryType.Output);
+        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
+        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
         MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
         MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
         MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
@@ -43,14 +44,13 @@ namespace Controllers
 
         int counter;
 
-        int exitBox = 0;
-
         private bool stopScene = false;
 
         public PickPlaceXYZ_grab_L179()
         {
             partConveyor.Value = false;
-            boxConveyor.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
 
@@ -71,7 +71,8 @@ namespace Controllers
             rtBoxAtPlace.CLK(!boxAtPlace.Value);
 
             partConveyor.Value = false;
-            boxConveyor.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
             exitConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
@@ -203,21 +204,24 @@ namespace Controllers
 
             if (counter == 3)
             {
-                boxConveyor.Value = true;
+                //boxConveyorForward.Value = true;
+                if (!boxAtPlace.Value)
+                {
+                    boxConveyorForward.Value = true;
+                }
                 exitConveyor.Value = true;
 
                 if (ftBoxAtPlace.Q)
                 {
-                    counter = 0;
+                    // counter = 0;
                     exitConveyor.Value = false;
-                    exitBox++;
                 }
             }
             else
             {
                 if (boxAtPlace.Value)
                 {
-                    boxConveyor.Value = true;
+                    boxConveyorForward.Value = true;
                     exitConveyor.Value = true;
                 }
             }
@@ -232,10 +236,6 @@ namespace Controllers
             //     exitYellow.Value = true;
             //     exitGreen.Value = false;
             // }
-
-            if (exitBox == 1) {
-                stopScene = true;
-            }
 
             #endregion
         }
