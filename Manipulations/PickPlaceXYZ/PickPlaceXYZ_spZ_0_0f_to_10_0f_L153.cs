@@ -12,8 +12,10 @@ namespace Controllers
 {
     public class PickPlaceXYZ_spZ_0_0f_to_10_0f_L153 : Controller
     {
-        MemoryBit partConveyor = MemoryMap.Instance.GetBit("Part conveyor", MemoryType.Output);
-        MemoryBit boxConveyor = MemoryMap.Instance.GetBit("Box conveyor", MemoryType.Output);
+        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
+        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
+        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
+        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
         MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
         MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
         MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
@@ -22,6 +24,8 @@ namespace Controllers
         MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
         // MemoryBit exitYellow = MemoryMap.Instance.GetBit("Exit yellow", MemoryType.Output);
         // MemoryBit exitGreen = MemoryMap.Instance.GetBit("Exit green", MemoryType.Output);
+
+        MemoryBit partEmitter = MemoryMap.Instance.GetBit("Part emitter", MemoryType.Output);
 
         MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
         MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
@@ -49,10 +53,14 @@ namespace Controllers
 
         public PickPlaceXYZ_spZ_0_0f_to_10_0f_L153()
         {
-            partConveyor.Value = false;
-            boxConveyor.Value = false;
+            partConveyorForward.Value = false;
+            partConveyorBackward.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
+
+            partEmitter.Value = true;
 
             spX.Value = 0;
             spY.Value = 0;
@@ -70,11 +78,15 @@ namespace Controllers
             rtPartAtPlace.CLK(!partAtPlace.Value);
             rtBoxAtPlace.CLK(!boxAtPlace.Value);
 
-            partConveyor.Value = false;
-            boxConveyor.Value = false;
+            partConveyorForward.Value = false;
+            partConveyorBackward.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
             exitConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
+
+            partEmitter.Value = true;
 
             #region X & Y Movement
 
@@ -150,7 +162,7 @@ namespace Controllers
             }
             else if (pickingState == State.State5)
             {
-                spZ.Value = 10.0f;
+                spZ.Value = 10f;
 
                 if (Near(posZ.Value, spZ.Value, 0.01f))
                     pickingState = State.State0;
@@ -199,11 +211,11 @@ namespace Controllers
             #region Conveyors
 
             if (partAtPlace.Value)
-                partConveyor.Value = true;
+                partConveyorForward.Value = true;
 
             if (counter == 3)
             {
-                boxConveyor.Value = true;
+                boxConveyorForward.Value = true;
                 exitConveyor.Value = true;
 
                 if (ftBoxAtPlace.Q)
@@ -217,7 +229,7 @@ namespace Controllers
             {
                 if (boxAtPlace.Value)
                 {
-                    boxConveyor.Value = true;
+                    boxConveyorForward.Value = true;
                     exitConveyor.Value = true;
                 }
             }
