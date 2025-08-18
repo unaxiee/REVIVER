@@ -10,7 +10,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class PickPlaceXYZ_spX_8_3f_to_neg_1_0f_L94 : Controller
+    public class Recovery_PickPlaceXYZ_spX_8_3f_to_neg_1_0f_L94 : Controller
     {
         MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
         MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
@@ -25,6 +25,8 @@ namespace Controllers
         // MemoryBit exitYellow = MemoryMap.Instance.GetBit("Exit yellow", MemoryType.Output);
         // MemoryBit exitGreen = MemoryMap.Instance.GetBit("Exit green", MemoryType.Output);
 
+        // MemoryBit partEmitter = MemoryMap.Instance.GetBit("Part emitter", MemoryType.Output);
+
         MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
         MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
         MemoryBit detected = MemoryMap.Instance.GetBit("Detected", MemoryType.Input);
@@ -38,8 +40,10 @@ namespace Controllers
         FTRIG ftPartAtPlace = new FTRIG();
         FTRIG ftBoxAtPlace = new FTRIG();
 
-        State pickingState = State.State0;
+        State pickingState = State.State1;
         State grabState = State.State0;
+
+        State recoveryState = State.State0;
 
         TON grabTimer = new TON();
 
@@ -49,21 +53,33 @@ namespace Controllers
 
         private bool stopScene = false;
 
-        public PickPlaceXYZ_spX_8_3f_to_neg_1_0f_L94()
+        private int currRecoveryIndex = 0;
+        private Func<bool>[] recoverySteps;
+
+        public Recovery_PickPlaceXYZ_spX_8_3f_to_neg_1_0f_L94()
         {
             partConveyorForward.Value = false;
             partConveyorBackward.Value = false;
             boxConveyorForward.Value = false;
             boxConveyorBackward.Value = false;
             // exitYellow.Value = false;
-            // exitGreen.Value = true;
+            // exitGreen.Value = true
 
-            spX.Value = 0;
-            spY.Value = 0;
+            // partEmitter.Value = false;
+
+            spX.Value = -1.0f;
+            spY.Value = 5.5f;
             spZ.Value = 0;
             grab.Value = false;
 
+            counter = 0;
+
             grabTimer.PT = 1000;
+
+            recoverySteps = new Func<bool>[]
+            {
+                
+            };
         }
 
         public override void Execute(int elapsedMilliseconds)
@@ -82,6 +98,18 @@ namespace Controllers
             // exitYellow.Value = false;
             // exitGreen.Value = true;
 
+            //partEmitter.Value = false;
+
+            if (currRecoveryIndex < recoverySteps.Length)
+            {
+                bool done = recoverySteps[currRecoveryIndex]();
+                if (done)
+                    currRecoveryIndex++;
+                return;
+            }
+
+            //partEmitter.Value = true;
+
             #region X & Y Movement
 
             if (pickingState == State.State0) //Waiting for part and box
@@ -97,7 +125,7 @@ namespace Controllers
             {
                 c.Value = false;
 
-                spX.Value = -1.0f;
+                spX.Value = 8.3f;
                 spY.Value = 5.5f;
 
                 if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
@@ -216,6 +244,7 @@ namespace Controllers
                 {
                     counter = 0;
                     exitConveyor.Value = false;
+                    exitBox++;
                 }
             }
             else
@@ -238,6 +267,10 @@ namespace Controllers
             //     exitGreen.Value = false;
             // }
 
+            if (exitBox == 1) {
+                stopScene = true;
+            }
+
             #endregion
         }
 
@@ -247,5 +280,176 @@ namespace Controllers
         }
 
         public override bool stopSignal => stopScene;
+
+        private bool recoveryLogicGrabDrop(float curr_spX, float curr_spY, float curr_spZ, bool grab_c, float tar_spX, float tar_spY, float tar_spZ, bool drop_c, bool beltBack)
+        {
+            if (recoveryState == State.State0)
+            {
+                c.Value = grab_c;
+
+                spX.Value = curr_spX;
+                spY.Value = curr_spY;
+                
+                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
+                {
+                    recoveryState = State.State1;
+                }
+            }
+            else if (recoveryState == State.State1)
+            {
+                spZ.Value = curr_spZ;
+
+                if (detected.Value)
+                {
+                    spZ.Value = posZ.Value;
+                    recoveryState = State.State2;
+                }
+            }
+            else if (recoveryState == State.State2)
+            {
+                grab.Value = true;
+
+                grabTimer.IN = true;
+
+                partConveyorBackward.Value = beltBack;
+
+                if (grabTimer.Q)
+                {
+                    grabTimer.IN = false;
+                    partConveyorBackward.Value = false;
+                    recoveryState = State.State3;
+                }
+            }
+            else if (recoveryState == State.State3)
+            {
+                spZ.Value = 0f;
+
+                if (Near(spZ.Value, posZ.Value, 0.01f))
+                {
+                    recoveryState = State.State4;
+                }
+            }
+            else if (recoveryState == State.State4)
+            {
+                c.Value = drop_c;
+                
+                spX.Value = tar_spX;
+                spY.Value = tar_spY;
+
+                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
+                {
+                    recoveryState = State.State5;
+                }
+            }
+            else if (recoveryState == State.State5)
+            {
+                spZ.Value = tar_spZ;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    grab.Value = false;
+                    recoveryState = State.State6;
+                }
+            }
+            else if (recoveryState == State.State6)
+            {
+                spZ.Value = 0;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    recoveryState = State.State0;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool recoveryLogicDrop(float tar_spX, float tar_spY, float tar_spZ, bool drop_c)
+        {
+            if (recoveryState == State.State0)
+            {
+                spZ.Value = 0f;
+
+                if (Near(spZ.Value, posZ.Value, 0.01f))
+                {
+                    recoveryState = State.State1;
+                }
+            }
+            else if (recoveryState == State.State1)
+            {
+                c.Value = drop_c;
+
+                spX.Value = tar_spX;
+                spY.Value = tar_spY;
+
+                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
+                {
+                    recoveryState = State.State2;
+                }
+            }
+            else if (recoveryState == State.State2)
+            {
+                spZ.Value = tar_spZ;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    grab.Value = false;
+                    recoveryState = State.State3;
+                }
+            }
+            else if (recoveryState == State.State3)
+            {
+                spZ.Value = 0;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    recoveryState = State.State0;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool recoveryLogicRollerBack()
+        {
+            boxConveyorBackward.Value = true;
+            if (ftBoxAtPlace.Q)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private bool recoveryLogicRollerForward()
+        {
+            boxConveyorForward.Value = true;
+            if (rtBoxAtPlace.Q)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private bool recoveryLogicBeltForward()
+        {
+            partConveyorForward.Value = true;
+            if (!partAtPlace.Value)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private bool recoveryLogicBeltBack()
+        {
+            partConveyorBackward.Value = true;
+            if (ftPartAtPlace.Q)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        
     }
 }
