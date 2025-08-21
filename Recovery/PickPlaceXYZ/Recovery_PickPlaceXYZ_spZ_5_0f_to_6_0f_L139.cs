@@ -10,7 +10,7 @@ using EngineIO;
 
 namespace Controllers
 {
-    public class PickPlaceXYZ_spX_3_1f_to_10_0f_L124 : Controller
+    public class Recovery_PickPlaceXYZ_spZ_5_0f_to_6_0f_L139 : Controller
     {
         MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
         MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
@@ -41,27 +41,43 @@ namespace Controllers
         State pickingState = State.State0;
         State grabState = State.State0;
 
+        State recoveryState = State.State0;
+
         TON grabTimer = new TON();
 
         int counter;
 
+        int exitBox = 0;
+
         private bool stopScene = false;
 
-        public PickPlaceXYZ_spX_3_1f_to_10_0f_L124()
+        private int currRecoveryIndex = 0;
+        private Func<bool>[] recoverySteps;
+
+        public Recovery_PickPlaceXYZ_spZ_5_0f_to_6_0f_L139()
         {
             partConveyorForward.Value = false;
             partConveyorBackward.Value = false;
             boxConveyorForward.Value = false;
             boxConveyorBackward.Value = false;
             // exitYellow.Value = false;
-            // exitGreen.Value = true;
+            // exitGreen.Value = true
 
-            spX.Value = 0;
-            spY.Value = 0;
+            spX.Value = 3.1f;
+            spY.Value = 5.3f;
             spZ.Value = 0;
             grab.Value = false;
 
+            counter = 3;
+
             grabTimer.PT = 1000;
+
+            recoverySteps = new Func<bool>[]
+            {
+                () => recoveryLogicGrabDrop(3.1f, 5.3f, 5f, true, 8.3f, 5.5f, 0.3f, false, false),
+                () => recoveryLogicGrabDrop(3f, 3.8f, 10f, false, 3.1f, 3.8f, 10f, false, false),
+                () => recoveryLogicGrabDrop(8.3f, 5.5f, 0.3f, true, 3.1f, 5.3f, 5f, false, false),
+            };
         }
 
         public override void Execute(int elapsedMilliseconds)
@@ -79,6 +95,14 @@ namespace Controllers
             exitConveyor.Value = false;
             // exitYellow.Value = false;
             // exitGreen.Value = true;
+
+            if (currRecoveryIndex < recoverySteps.Length)
+            {
+                bool done = recoverySteps[currRecoveryIndex]();
+                if (done)
+                    currRecoveryIndex++;
+                return;
+            }
 
             #region X & Y Movement
 
@@ -125,7 +149,7 @@ namespace Controllers
                 {
                     c.Value = true;
 
-                    spX.Value = 10.0f;
+                    spX.Value = 3.1f;
                     spY.Value = 5.3f;
                 }
 
@@ -214,6 +238,7 @@ namespace Controllers
                 {
                     counter = 0;
                     exitConveyor.Value = false;
+                    exitBox++;
                 }
             }
             else
@@ -236,6 +261,10 @@ namespace Controllers
             //     exitGreen.Value = false;
             // }
 
+            if (exitBox == 1) {
+                stopScene = true;
+            }
+
             #endregion
         }
 
@@ -245,5 +274,88 @@ namespace Controllers
         }
 
         public override bool stopSignal => stopScene;
+
+        private bool recoveryLogicGrabDrop(float curr_spX, float curr_spY, float curr_spZ, bool grab_c, float tar_spX, float tar_spY, float tar_spZ, bool drop_c, bool beltBack)
+        {
+            if (recoveryState == State.State0)
+            {
+                c.Value = grab_c;
+
+                spX.Value = curr_spX;
+                spY.Value = curr_spY;
+                
+                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
+                {
+                    recoveryState = State.State1;
+                }
+            }
+            else if (recoveryState == State.State1)
+            {
+                spZ.Value = curr_spZ;
+
+                if (detected.Value)
+                {
+                    spZ.Value = posZ.Value;
+                    recoveryState = State.State2;
+                }
+            }
+            else if (recoveryState == State.State2)
+            {
+                grab.Value = true;
+
+                grabTimer.IN = true;
+
+                partConveyorBackward.Value = beltBack;
+
+                if (grabTimer.Q)
+                {
+                    grabTimer.IN = false;
+                    partConveyorBackward.Value = false;
+                    recoveryState = State.State3;
+                }
+            }
+            else if (recoveryState == State.State3)
+            {
+                spZ.Value = 0f;
+
+                if (Near(spZ.Value, posZ.Value, 0.01f))
+                {
+                    recoveryState = State.State4;
+                }
+            }
+            else if (recoveryState == State.State4)
+            {
+                c.Value = drop_c;
+                
+                spX.Value = tar_spX;
+                spY.Value = tar_spY;
+
+                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
+                {
+                    recoveryState = State.State5;
+                }
+            }
+            else if (recoveryState == State.State5)
+            {
+                spZ.Value = tar_spZ;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    grab.Value = false;
+                    recoveryState = State.State6;
+                }
+            }
+            else if (recoveryState == State.State6)
+            {
+                spZ.Value = 0;
+
+                if (Near(posZ.Value, spZ.Value, 0.01f))
+                {
+                    recoveryState = State.State0;
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }
