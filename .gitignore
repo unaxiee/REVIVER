@@ -9,4 +9,6 @@ Scripts/
 share/
 Videos/FaultInjection/
 Videos/Recovery/
+Videos/images/
 pyvenv.cfg
+Manipulations/PickPlaceXYZ/test/
