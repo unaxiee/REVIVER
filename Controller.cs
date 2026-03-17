@@ -13,5 +13,7 @@ namespace Controllers
         public virtual bool stopSignal => false;
 
         public virtual int executionCount { get; set; } = 0;
+
+        public bool captureSignal = false;
     }
 }

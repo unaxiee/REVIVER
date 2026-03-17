@@ -10,6 +10,10 @@ using System.Diagnostics;
 
 using ScreenRecorderLib;
 
+using System.Drawing;
+using System.Drawing.Imaging;
+using System.Windows.Forms;
+
 using EngineIO;
 using System.IO;
 using System.Linq;
@@ -31,6 +35,7 @@ namespace Controllers
         //static string caseTest = null;  // set to null if no subfolder
         static string manipulationRoot = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations";
         static string videoRoot = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\FaultInjection";
+        static string screenshotRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\images\position";
 
         /// <summary>
         /// The idea of this sample is to demonstrate that Microsoft Visual Studio can be used as a soft PLC to
@@ -41,6 +46,7 @@ namespace Controllers
         {
             string manipulationFolder = BuildPath(manipulationRoot, sceneName, caseTest);
             string videoFolder = BuildPath(videoRoot, sceneName, caseTest);
+            string screenshotFolder = BuildPath(screenshotRoot, sceneName, caseTest);
 
             string[] manipulationFiles = Directory.GetFiles(manipulationFolder, "*.cs");
             var classNames = manipulationFiles
@@ -66,6 +72,9 @@ namespace Controllers
                     continue;
                 }
 
+                string currentScreenshotFolder = Path.Combine(screenshotFolder, name);
+                Directory.CreateDirectory(currentScreenshotFolder);
+
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
 
@@ -82,6 +91,7 @@ namespace Controllers
                 Thread.Sleep(CycleTime);
 
                 int executionCount = 0;
+                int screenshotCount = 0;
 
                 while (!controller.stopSignal)
                 {
@@ -95,6 +105,13 @@ namespace Controllers
                         controller.executionCount = executionCount;
 
                         controller.Execute((int)stopwatch.ElapsedMilliseconds);
+
+                        if (controller.captureSignal)
+                        {
+                            CaptureScreenshot(currentScreenshotFolder, name, screenshotCount);
+                            screenshotCount++;
+                            controller.captureSignal = false;
+                        }
 
                         executionCount++;
 
@@ -173,6 +190,23 @@ namespace Controllers
                 return Path.Combine(root, scene);
             else
                 return Path.Combine(root, scene, caseTest);
+        }
+
+        static void CaptureScreenshot(string folder, string name, int screenshotCount)
+        {
+            Rectangle bounds = Screen.PrimaryScreen.Bounds;
+            string fileName = $"{name}_shot{screenshotCount:D2}.png";
+            string filePath = Path.Combine(folder, fileName);
+
+            using (Bitmap bitmap = new Bitmap(bounds.Width, bounds.Height))
+            {
+                using (Graphics g = Graphics.FromImage(bitmap))
+                {
+                    g.CopyFromScreen(bounds.Location, Point.Empty, bounds.Size);
+                }
+                bitmap.Save(filePath, System.Drawing.Imaging.ImageFormat.Png);
+            }
+            Debug.WriteLine($"Screenshot saved: {filePath}");
         }
     }
 }

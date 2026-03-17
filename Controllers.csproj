@@ -1,12 +1,13 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net5.0</TargetFramework>
+    <TargetFramework>net5.0-windows</TargetFramework>
+	<UseWindowsForms>true</UseWindowsForms>
     <Platform>x64</Platform>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>AnyCPU;x64</Platforms>
-	<StartupObject>Controllers.Program_Recovery</StartupObject>
+	<StartupObject>Controllers.Program_FaultInjection</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
