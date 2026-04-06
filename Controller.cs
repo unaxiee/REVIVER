@@ -10,9 +10,9 @@ namespace Controllers
     {
         public abstract void Execute(int elapsedMilliseconds);
 
-        public virtual bool stopSignal => false;
+        public int executionCount { get; set; } = 0;
 
-        public virtual int executionCount { get; set; } = 0;
+        public bool stopSignal = false;
 
         public bool captureSignal = false;
     }
