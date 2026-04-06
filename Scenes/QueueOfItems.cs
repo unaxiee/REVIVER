@@ -137,6 +137,5 @@ namespace Controllers
             }
 
         }
-        public override bool stopSignal => stopScene;
     }
 }

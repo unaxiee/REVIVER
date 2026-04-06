@@ -173,6 +173,5 @@ namespace Controllers
                     baseState = State.State0;
             }
         }
-        public override bool stopSignal => stopScene;
     }
 }
