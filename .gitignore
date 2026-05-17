@@ -11,4 +11,5 @@ Videos/FaultInjection/
 Videos/Recovery/
 Videos/images/
 pyvenv.cfg
-Manipulations/PickPlaceXYZ/test/
+Recovery/.runtime_build
+match.csv

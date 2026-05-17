@@ -44,6 +44,8 @@ namespace Controllers
         /// </summary>
         public const int CycleTime = 8;
         public const int CsvLogIntervalExecutions = 10;
+        public const bool SaveScreenshots = false;
+        public const bool SaveCsvLogs = false;
 
         // Naming schema
         static string sceneName = "PickPlaceXYZ";
@@ -87,8 +89,11 @@ namespace Controllers
                 }
 
                 string currentScreenshotFolder = Path.Combine(screenshotFolder, name);
-                Directory.CreateDirectory(currentScreenshotFolder);
-                Directory.CreateDirectory(csvFolder);
+                if (SaveScreenshots)
+                    Directory.CreateDirectory(currentScreenshotFolder);
+
+                if (SaveCsvLogs)
+                    Directory.CreateDirectory(csvFolder);
 
                 string fullClassName = $"Controllers.{name}";
                 Type controllerType = Type.GetType(fullClassName);
@@ -100,7 +105,9 @@ namespace Controllers
                 SwitchToRun(start);
 
                 Controller controller = (Controller)Activator.CreateInstance(controllerType);
-                var loggedSignals = DiscoverLoggedSignals(manipulationFile, controller);
+                var loggedSignals = SaveCsvLogs
+                    ? DiscoverLoggedSignals(manipulationFile, controller)
+                    : new List<CsvSignal>();
                 System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
 
                 stopwatch.Start();
@@ -110,10 +117,15 @@ namespace Controllers
                 int executionCount = 0;
                 int screenshotCount = 0;
                 Stopwatch runStopwatch = Stopwatch.StartNew();
+                StreamWriter csvWriter = null;
 
-                using (StreamWriter csvWriter = new StreamWriter(csvPath, false))
+                try
                 {
-                    WriteCsvHeader(csvWriter, loggedSignals);
+                    if (SaveCsvLogs)
+                    {
+                        csvWriter = new StreamWriter(csvPath, false);
+                        WriteCsvHeader(csvWriter, loggedSignals);
+                    }
 
                     while (!controller.stopSignal)
                     {
@@ -128,15 +140,19 @@ namespace Controllers
 
                             controller.Execute((int)stopwatch.ElapsedMilliseconds);
 
-                            if (executionCount % CsvLogIntervalExecutions == 0)
+                            if (SaveCsvLogs && executionCount % CsvLogIntervalExecutions == 0)
                             {
                                 WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
                             }
 
                             if (controller.captureSignal)
                             {
-                                CaptureScreenshot(currentScreenshotFolder, name, screenshotCount);
-                                screenshotCount++;
+                                if (SaveScreenshots)
+                                {
+                                    CaptureScreenshot(currentScreenshotFolder, name, screenshotCount);
+                                    screenshotCount++;
+                                }
+
                                 controller.captureSignal = false;
                             }
 
@@ -149,9 +165,16 @@ namespace Controllers
 
                         if (executionCount == 4000)
                             break;
-                    }                    
+                    }
 
-                    WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                    if (SaveCsvLogs)
+                    {
+                        WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                    }
+                }
+                finally
+                {
+                    csvWriter?.Dispose();
                 }
 
                 System.Diagnostics.Debug.WriteLine($"Executed {executionCount} times");
