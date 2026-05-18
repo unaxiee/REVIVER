@@ -11,6 +11,8 @@ namespace Controllers
         public State PickingState { get; set; }
         public State GrabState { get; set; }
         public int Counter { get; set; }
+        public bool OverrideCounter { get; set; }
+        public int RecoveryCounter { get; set; }
         public int ExitBox { get; set; }
         public int StopExitBox { get; set; } = 2;
         public bool StateIdentificationSatisfied { get; set; }
@@ -27,6 +29,7 @@ namespace Controllers
     {
         BenignResume,
         Overflow,
+        MisalignmentBeltConveyor,
         Placeholder
     }
 
@@ -47,6 +50,10 @@ namespace Controllers
                 return OverflowDecision(snapshot, stateDecision,
                     "Stage 2 recovery module placeholder: overflow module selected.");
 
+            if (IsMisalignmentBeltConveyorRecoveryCase(snapshot, stateDecision, recoveryCase))
+                return MisalignmentBeltConveyorDecision(stateDecision,
+                    "Stage 2 recovery module: misalignment_beltconveyor module selected.");
+
             if (IsPlaceholderRecoveryCase(snapshot, stateDecision, recoveryCase))
                 return ModuleDecision(stateDecision, RecoveryModule.Placeholder,
                     "Stage 2 recovery module placeholder: placeholder module selected.");
@@ -62,6 +69,14 @@ namespace Controllers
         {
             // Placeholder: Program_Recovery currently routes match.csv label "overflow" here.
             return !stateDecision.StateIdentificationSatisfied && recoveryCase == "overflow";
+        }
+
+        static bool IsMisalignmentBeltConveyorRecoveryCase(
+            PickPlaceXYZSnapshot snapshot,
+            PickPlaceXYZRecoveryDecision stateDecision,
+            string recoveryCase)
+        {
+            return !stateDecision.StateIdentificationSatisfied && recoveryCase == "misalignment_beltconveyor";
         }
 
         static bool IsPlaceholderRecoveryCase(
@@ -121,6 +136,24 @@ namespace Controllers
             };
         }
 
+        static PickPlaceXYZRecoveryModuleDecision MisalignmentBeltConveyorDecision(
+            PickPlaceXYZRecoveryDecision stateDecision,
+            string reason)
+        {
+            PickPlaceXYZRecoveryDecision recoveryDecision = CopyDecision(stateDecision);
+            recoveryDecision.RecoveryModule = RecoveryModule.MisalignmentBeltConveyor;
+            recoveryDecision.OverrideCounter = true;
+            recoveryDecision.RecoveryCounter = 0;
+            recoveryDecision.Reason =
+                $"{recoveryDecision.Reason} {reason} Misalignment belt conveyor counter override: counter = 0.";
+
+            return new PickPlaceXYZRecoveryModuleDecision
+            {
+                RecoveryDecision = recoveryDecision,
+                Reason = reason
+            };
+        }
+
         static PickPlaceXYZRecoveryDecision CopyDecision(PickPlaceXYZRecoveryDecision decision)
         {
             return new PickPlaceXYZRecoveryDecision
@@ -128,6 +161,8 @@ namespace Controllers
                 PickingState = decision.PickingState,
                 GrabState = decision.GrabState,
                 Counter = decision.Counter,
+                OverrideCounter = decision.OverrideCounter,
+                RecoveryCounter = decision.RecoveryCounter,
                 ExitBox = decision.ExitBox,
                 StopExitBox = decision.StopExitBox,
                 StateIdentificationSatisfied = decision.StateIdentificationSatisfied,
