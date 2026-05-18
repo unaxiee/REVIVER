@@ -87,24 +87,20 @@ namespace Controllers
         }
     }
 
-    public sealed class PickPlaceXYZRecoveryDecision
-    {
-        public State PickingState { get; set; }
-        public State GrabState { get; set; }
-        public int Counter { get; set; }
-        public int ExitBox { get; set; }
-        public bool OverrideSpZ { get; set; }
-        public float RecoverySpZ { get; set; }
-        public string Reason { get; set; }
-    }
-
     public static class PickPlaceXYZRecoveryStateDecider
     {
-        const float SetpointDelta = 0.05f;
         const float PositionDelta = 0.15f;
-        const float ZDelta = 0.15f;
 
-        public static PickPlaceXYZRecoveryDecision Decide(PickPlaceXYZSnapshot s)
+        public static PickPlaceXYZRecoveryDecision Decide(PickPlaceXYZSnapshot s, string recoveryCase)
+        {
+            if (!IsPauseRecoveryCase(recoveryCase))
+                return NotSatisfiedDecision(s,
+                    $"Stage 1 state identification skipped for label '{recoveryCase}'; defer to recovery module identification.");
+
+            return IdentifyPauseState(s);
+        }
+
+        static PickPlaceXYZRecoveryDecision IdentifyPauseState(PickPlaceXYZSnapshot s)
         {
             if (
                 !s.Grab
@@ -182,6 +178,9 @@ namespace Controllers
                 GrabState = grabState,
                 Counter = s.Counter,
                 ExitBox = s.ExitBox,
+                StopExitBox = 1,
+                StateIdentificationSatisfied = true,
+                RecoveryModule = RecoveryModule.BenignResume,
                 Reason = reason
             };
         }
@@ -197,6 +196,27 @@ namespace Controllers
             decision.OverrideSpZ = true;
             decision.RecoverySpZ = spZ;
             return decision;
+        }
+
+        static PickPlaceXYZRecoveryDecision NotSatisfiedDecision(
+            PickPlaceXYZSnapshot s,
+            string reason)
+        {
+            return new PickPlaceXYZRecoveryDecision
+            {
+                PickingState = State.State0,
+                GrabState = State.State0,
+                Counter = s.Counter,
+                ExitBox = s.ExitBox,
+                StateIdentificationSatisfied = false,
+                RecoveryModule = RecoveryModule.BenignResume,
+                Reason = reason
+            };
+        }
+
+        static bool IsPauseRecoveryCase(string recoveryCase)
+        {
+            return string.Equals(recoveryCase, "system_pause", StringComparison.OrdinalIgnoreCase);
         }
 
         static bool IsAtHomeXY(PickPlaceXYZSnapshot s)

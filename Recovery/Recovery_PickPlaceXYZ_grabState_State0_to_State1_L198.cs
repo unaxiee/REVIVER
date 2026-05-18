@@ -12,8 +12,9 @@ namespace Controllers
                 GrabState = State.State3,
                 Counter = 0,
                 ExitBox = 0,
-                OverrideSpZ = false,
-                RecoverySpZ = 0f,
+                StopExitBox = 1,
+                StateIdentificationSatisfied = true,
+                RecoveryModule = RecoveryModule.BenignResume,
                 Reason = @"State (2, 3): holding, XY is at pickup, Z is moving vertically, and retract command is active."
             })
         {
@@ -24,7 +25,7 @@ namespace Controllers
         // partConveyorForward=False, boxConveyorForward=False, exitConveyor=False
         // grab=True, c=False
         // spX=8.3, spY=5.5, spZ=0
-        // posX=8.299919, posY=5.4999084, posZ=0
+        // posX=8.299937, posY=5.4999084, posZ=0
         // counter=0, exitBox=0
     }
 }
