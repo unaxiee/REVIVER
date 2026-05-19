@@ -25,7 +25,7 @@ namespace Controllers
         // partConveyorForward=False, boxConveyorForward=False, exitConveyor=False
         // grab=True, c=False
         // spX=8.3, spY=5.5, spZ=0
-        // posX=8.299937, posY=5.4999084, posZ=0
+        // posX=8.299919, posY=5.4999084, posZ=0
         // counter=0, exitBox=0
     }
 }

@@ -11,16 +11,12 @@ namespace Controllers
         public State PickingState { get; set; }
         public State GrabState { get; set; }
         public int Counter { get; set; }
-        public bool OverrideCounter { get; set; }
-        public int RecoveryCounter { get; set; }
         public int ExitBox { get; set; }
-        public int StopExitBox { get; set; } = 2;
+        public int StopExitBox { get; set; } = 1;
         public bool StateIdentificationSatisfied { get; set; }
         public RecoveryModule RecoveryModule { get; set; }
         public bool OverrideSpZ { get; set; }
         public float RecoverySpZ { get; set; }
-        public bool OverridePartConveyorBackward { get; set; }
-        public bool RecoveryPartConveyorBackward { get; set; }
         public int SafeGrabCompletionThreshold { get; set; } = 6;
         public string Reason { get; set; }
     }
@@ -30,6 +26,7 @@ namespace Controllers
         BenignResume,
         Overflow,
         MisalignmentBeltConveyor,
+        Underflow,
         Placeholder
     }
 
@@ -53,6 +50,10 @@ namespace Controllers
             if (IsMisalignmentBeltConveyorRecoveryCase(snapshot, stateDecision, recoveryCase))
                 return MisalignmentBeltConveyorDecision(stateDecision,
                     "Stage 2 recovery module: misalignment_beltconveyor module selected.");
+
+            if (IsUnderflowRecoveryCase(snapshot, stateDecision, recoveryCase))
+                return UnderflowDecision(snapshot, stateDecision,
+                    "Stage 2 recovery module: underflow module selected.");
 
             if (IsPlaceholderRecoveryCase(snapshot, stateDecision, recoveryCase))
                 return ModuleDecision(stateDecision, RecoveryModule.Placeholder,
@@ -88,6 +89,14 @@ namespace Controllers
             return !stateDecision.StateIdentificationSatisfied && recoveryCase == "placeholder";
         }
 
+        static bool IsUnderflowRecoveryCase(
+            PickPlaceXYZSnapshot snapshot,
+            PickPlaceXYZRecoveryDecision stateDecision,
+            string recoveryCase)
+        {
+            return !stateDecision.StateIdentificationSatisfied && recoveryCase == "underflow";
+        }
+
         static PickPlaceXYZRecoveryModuleDecision ModuleDecision(
             PickPlaceXYZRecoveryDecision stateDecision,
             RecoveryModule recoveryModule,
@@ -112,6 +121,7 @@ namespace Controllers
             PickPlaceXYZRecoveryDecision recoveryDecision = CopyDecision(stateDecision);
             recoveryDecision.RecoveryModule = RecoveryModule.Overflow;
             recoveryDecision.GrabState = State.State0;
+            recoveryDecision.StopExitBox = 2;
             recoveryDecision.Reason = $"{recoveryDecision.Reason} {reason}";
 
             if (snapshot.Grab)
@@ -142,10 +152,30 @@ namespace Controllers
         {
             PickPlaceXYZRecoveryDecision recoveryDecision = CopyDecision(stateDecision);
             recoveryDecision.RecoveryModule = RecoveryModule.MisalignmentBeltConveyor;
-            recoveryDecision.OverrideCounter = true;
-            recoveryDecision.RecoveryCounter = 0;
+            recoveryDecision.Counter = 0;
             recoveryDecision.Reason =
                 $"{recoveryDecision.Reason} {reason} Misalignment belt conveyor counter override: counter = 0.";
+
+            return new PickPlaceXYZRecoveryModuleDecision
+            {
+                RecoveryDecision = recoveryDecision,
+                Reason = reason
+            };
+        }
+
+        static PickPlaceXYZRecoveryModuleDecision UnderflowDecision(
+            PickPlaceXYZSnapshot snapshot,
+            PickPlaceXYZRecoveryDecision stateDecision,
+            string reason)
+        {
+            PickPlaceXYZRecoveryDecision recoveryDecision = CopyDecision(stateDecision);
+            recoveryDecision.RecoveryModule = RecoveryModule.Underflow;
+            recoveryDecision.PickingState = snapshot.Grab ? State.State3 : State.State0;
+            recoveryDecision.GrabState = State.State0;
+            recoveryDecision.Counter = 0;
+            recoveryDecision.ExitBox = 0;
+            recoveryDecision.Reason =
+                $"{recoveryDecision.Reason} {reason} Underflow state override: grab is {(snapshot.Grab ? "true" : "false")}, resume from State ({(snapshot.Grab ? "3" : "0")}, 0). Underflow counter override: counter = 0. Underflow exitBox override: exitBox = 0.";
 
             return new PickPlaceXYZRecoveryModuleDecision
             {
@@ -161,16 +191,12 @@ namespace Controllers
                 PickingState = decision.PickingState,
                 GrabState = decision.GrabState,
                 Counter = decision.Counter,
-                OverrideCounter = decision.OverrideCounter,
-                RecoveryCounter = decision.RecoveryCounter,
                 ExitBox = decision.ExitBox,
                 StopExitBox = decision.StopExitBox,
                 StateIdentificationSatisfied = decision.StateIdentificationSatisfied,
                 RecoveryModule = decision.RecoveryModule,
                 OverrideSpZ = decision.OverrideSpZ,
                 RecoverySpZ = decision.RecoverySpZ,
-                OverridePartConveyorBackward = decision.OverridePartConveyorBackward,
-                RecoveryPartConveyorBackward = decision.RecoveryPartConveyorBackward,
                 SafeGrabCompletionThreshold = decision.SafeGrabCompletionThreshold,
                 Reason = decision.Reason
             };

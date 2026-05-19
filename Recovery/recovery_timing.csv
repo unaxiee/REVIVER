@@ -1,0 +1,17 @@
+manipulation,label,recovery_module,state_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms
+PickPlaceXYZ_grabState_State1_to_State0_L103,underflow,Underflow,7.744,18.994,1153.331,4510.000
+PickPlaceXYZ_grabState_State1_to_State2_L103,underflow,Underflow,0.421,0.353,1153.948,4488.000
+PickPlaceXYZ_grabState_State1_to_State3_L103,underflow,Underflow,0.134,1.024,1171.937,4493.000
+PickPlaceXYZ_grabState_State2_to_State0_L178,underflow,Underflow,10.336,22.878,1227.726,4550.000
+PickPlaceXYZ_grabState_State2_to_State3_L178,underflow,Underflow,0.414,0.617,1237.749,4553.000
+PickPlaceXYZ_pickingState_State1_to_State2_L90,underflow,Underflow,2.811,11.190,1234.854,4602.000
+PickPlaceXYZ_pickingState_State1_to_State3_L90,underflow,Underflow,0.142,0.636,1217.457,4538.000
+PickPlaceXYZ_pickingState_State1_to_State4_L90,underflow,Underflow,0.172,1.281,1208.471,4547.000
+PickPlaceXYZ_detected_neg_L175,underflow,Underflow,2.946,11.087,1251.286,4609.000
+PickPlaceXYZ_detected_true_L175,underflow,Underflow,0.296,1.266,1211.847,4576.000
+PickPlaceXYZ_grab_L148,underflow,Underflow,2.989,11.671,1210.028,4540.000
+PickPlaceXYZ_grab_L183,underflow,Underflow,0.164,0.570,1222.457,4535.000
+PickPlaceXYZ_pickingState_State0_to_State2_L160,underflow,Underflow,10.705,23.741,1162.368,1028.000
+PickPlaceXYZ_pickingState_State0_to_State3_L160,underflow,Underflow,1.549,1.983,1274.616,972.000
+PickPlaceXYZ_pickingState_State0_to_State4_L160,underflow,Underflow,0.117,0.788,1211.421,982.000
+PickPlaceXYZ_counter_3_L83,underflow,Underflow,6.537,20.159,1234.697,4595.000

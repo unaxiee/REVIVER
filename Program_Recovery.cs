@@ -41,11 +41,11 @@ namespace Controllers
         static readonly string matchCsvPath = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\match.csv";
         static readonly string[] specificMatchLabels =
         {
-            "misalignment_beltconveyor"
+            "underflow"
         };
         static readonly string[] specificManipulationNameFragments =
         {
-            "spX"
+            "counter"
         };
 
         static void Main(string[] args)
@@ -331,7 +331,6 @@ namespace Controllers
             PickPlaceXYZRecoveryDecision decision)
         {
             string path = Path.Combine(recoveryScriptRoot, "recovery_manifest.csv");
-            int manifestCounter = decision.OverrideCounter ? decision.RecoveryCounter : decision.Counter;
             string[] values =
             {
                 manipulationName,
@@ -339,7 +338,7 @@ namespace Controllers
                 recoveryScriptPath,
                 decision.PickingState.ToString(),
                 decision.GrabState.ToString(),
-                manifestCounter.ToString(CultureInfo.InvariantCulture),
+                decision.Counter.ToString(CultureInfo.InvariantCulture),
                 decision.ExitBox.ToString(CultureInfo.InvariantCulture),
                 decision.RecoveryModule.ToString(),
                 decision.Reason
@@ -415,11 +414,6 @@ namespace Controllers
             builder.AppendLine($"                PickingState = State.{decision.PickingState},");
             builder.AppendLine($"                GrabState = State.{decision.GrabState},");
             builder.AppendLine($"                Counter = {decision.Counter.ToString(CultureInfo.InvariantCulture)},");
-            if (decision.OverrideCounter)
-            {
-                builder.AppendLine("                OverrideCounter = true,");
-                builder.AppendLine($"                RecoveryCounter = {decision.RecoveryCounter.ToString(CultureInfo.InvariantCulture)},");
-            }
             builder.AppendLine($"                ExitBox = {decision.ExitBox.ToString(CultureInfo.InvariantCulture)},");
             builder.AppendLine($"                StopExitBox = {decision.StopExitBox.ToString(CultureInfo.InvariantCulture)},");
             builder.AppendLine($"                StateIdentificationSatisfied = {decision.StateIdentificationSatisfied.ToString().ToLowerInvariant()},");
@@ -428,11 +422,6 @@ namespace Controllers
             {
                 builder.AppendLine("                OverrideSpZ = true,");
                 builder.AppendLine($"                RecoverySpZ = {decision.RecoverySpZ.ToString("G", CultureInfo.InvariantCulture)}f,");
-            }
-            if (decision.OverridePartConveyorBackward)
-            {
-                builder.AppendLine("                OverridePartConveyorBackward = true,");
-                builder.AppendLine($"                RecoveryPartConveyorBackward = {decision.RecoveryPartConveyorBackward.ToString().ToLowerInvariant()},");
             }
             if (decision.SafeGrabCompletionThreshold != 6)
                 builder.AppendLine($"                SafeGrabCompletionThreshold = {decision.SafeGrabCompletionThreshold.ToString(CultureInfo.InvariantCulture)},");
@@ -558,6 +547,7 @@ namespace Controllers
         PickPlaceXYZBenignRecoveryController benignController;
         PickPlaceXYZOverflowRecoveryModuleController overflowController;
         PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController misalignmentBeltConveyorController;
+        PickPlaceXYZUnderflowRecoveryModuleController underflowController;
         PickPlaceXYZPlaceholderRecoveryModuleController placeholderController;
         Controller activeController;
         long additionalRecoveryModuleExecutionMilliseconds;
@@ -581,6 +571,12 @@ namespace Controllers
                 misalignmentBeltConveyorController =
                     new PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController(decision);
                 activeController = misalignmentBeltConveyorController;
+            }
+            else if (decision.RecoveryModule == RecoveryModule.Underflow)
+            {
+                underflowController =
+                    new PickPlaceXYZUnderflowRecoveryModuleController(decision);
+                activeController = underflowController;
             }
             else if (decision.RecoveryModule == RecoveryModule.Placeholder)
             {
@@ -610,6 +606,11 @@ namespace Controllers
                 || (activeController == misalignmentBeltConveyorController
                     && misalignmentBeltConveyorController != null
                     && !misalignmentBeltConveyorController.ModuleComplete);
+            additionalRecoveryModuleActive =
+                additionalRecoveryModuleActive
+                || (activeController == underflowController
+                    && underflowController != null
+                    && !underflowController.ModuleComplete);
 
             activeController.executionCount = executionCount;
             activeController.Execute(elapsedMilliseconds);
@@ -635,6 +636,17 @@ namespace Controllers
                 activeController = benignController;
                 AdditionalRecoveryModuleTransferred = true;
                 Debug.WriteLine("Misalignment belt conveyor recovery module complete; control transferred to benign PickPlaceXYZ controller.");
+                return;
+            }
+
+            if (activeController == underflowController
+                && underflowController.ModuleComplete)
+            {
+                benignController = new PickPlaceXYZBenignRecoveryController(
+                    underflowController.CreateContinuationDecision());
+                activeController = benignController;
+                AdditionalRecoveryModuleTransferred = true;
+                Debug.WriteLine("Underflow recovery module complete; control transferred to benign PickPlaceXYZ controller.");
                 return;
             }
 
@@ -1165,7 +1177,7 @@ namespace Controllers
 
         public PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
         {
-            counter = decision.OverrideCounter ? decision.RecoveryCounter : decision.Counter;
+            counter = decision.Counter;
             exitBox = decision.ExitBox;
             stopExitBox = decision.StopExitBox;
         }
@@ -1214,6 +1226,88 @@ namespace Controllers
         }
     }
 
+    public sealed class PickPlaceXYZUnderflowRecoveryModuleController : Controller
+    {
+        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
+        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
+        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
+        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
+        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
+        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
+        MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
+
+        MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
+        FTRIG rtBoxAtPlace = new FTRIG();
+
+        readonly State pickingState;
+        readonly State grabState;
+        readonly int counter;
+        readonly int exitBox;
+        readonly int stopExitBox;
+        readonly bool overrideCFalse;
+        bool movingForwardToLoadingArea;
+
+        public bool ModuleComplete { get; private set; }
+
+        public PickPlaceXYZUnderflowRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
+        {
+            pickingState = decision.PickingState;
+            grabState = decision.GrabState;
+            counter = decision.Counter;
+            exitBox = decision.ExitBox;
+            stopExitBox = decision.StopExitBox;
+            overrideCFalse = decision.PickingState == State.State3;
+        }
+
+        public override void Execute(int elapsedMilliseconds)
+        {
+            rtBoxAtPlace.CLK(!boxAtPlace.Value);
+
+            partConveyorForward.Value = false;
+            partConveyorBackward.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
+            exitConveyor.Value = false;
+
+            if (overrideCFalse)
+                c.Value = false;
+
+            if (!movingForwardToLoadingArea)
+            {
+                if (rtBoxAtPlace.Q)
+                    movingForwardToLoadingArea = true;
+                else
+                {
+                    boxConveyorBackward.Value = true;
+                    return;
+                }
+            }
+
+            if (boxAtPlace.Value)
+            {
+                ModuleComplete = true;
+                return;
+            }
+
+            boxConveyorForward.Value = true;
+        }
+
+        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
+        {
+            return new PickPlaceXYZRecoveryDecision
+            {
+                PickingState = pickingState,
+                GrabState = grabState,
+                Counter = counter,
+                ExitBox = exitBox,
+                StopExitBox = stopExitBox,
+                StateIdentificationSatisfied = true,
+                RecoveryModule = RecoveryModule.BenignResume,
+                Reason = "Continuation from completed underflow recovery module."
+            };
+        }
+    }
+
     public sealed class PickPlaceXYZPlaceholderRecoveryModuleController : Controller
     {
         PickPlaceXYZRecoveryDecision continuationDecision;
@@ -1227,15 +1321,11 @@ namespace Controllers
                 PickingState = decision.PickingState,
                 GrabState = decision.GrabState,
                 Counter = decision.Counter,
-                OverrideCounter = decision.OverrideCounter,
-                RecoveryCounter = decision.RecoveryCounter,
                 ExitBox = decision.ExitBox,
                 StateIdentificationSatisfied = true,
                 RecoveryModule = RecoveryModule.BenignResume,
                 OverrideSpZ = decision.OverrideSpZ,
                 RecoverySpZ = decision.RecoverySpZ,
-                OverridePartConveyorBackward = decision.OverridePartConveyorBackward,
-                RecoveryPartConveyorBackward = decision.RecoveryPartConveyorBackward,
                 SafeGrabCompletionThreshold = decision.SafeGrabCompletionThreshold,
                 Reason = "Continuation from placeholder recovery module."
             };
