@@ -41,11 +41,11 @@ namespace Controllers
         static readonly string matchCsvPath = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\match.csv";
         static readonly string[] specificMatchLabels =
         {
-            "underflow"
+            "misalignment_pallet"
         };
         static readonly string[] specificManipulationNameFragments =
         {
-            "spY", "6_7"
+            "spX", "98", "8_2"
         };
 
         static void Main(string[] args)
@@ -425,6 +425,23 @@ namespace Controllers
             }
             if (decision.SafeGrabCompletionThreshold != 6)
                 builder.AppendLine($"                SafeGrabCompletionThreshold = {decision.SafeGrabCompletionThreshold.ToString(CultureInfo.InvariantCulture)},");
+            if (decision.GrabReleaseOperations != null && decision.GrabReleaseOperations.Length > 0)
+            {
+                builder.AppendLine("                GrabReleaseOperations = new[]");
+                builder.AppendLine("                {");
+
+                foreach (PickPlaceXYZGrabReleaseOperation operation in decision.GrabReleaseOperations)
+                {
+                    builder.AppendLine(
+                        "                    new PickPlaceXYZGrabReleaseOperation(" +
+                        $"{Fmt(operation.PickupX)}f, {Fmt(operation.PickupY)}f, {Fmt(operation.PickupZ)}f, " +
+                        $"{Fmt(operation.PlaceX)}f, {Fmt(operation.PlaceY)}f, {Fmt(operation.PlaceZ)}f, " +
+                        $"{operation.GrabCValue.ToString().ToLowerInvariant()}, " +
+                        $"{operation.ReleaseCValue.ToString().ToLowerInvariant()}),");
+                }
+
+                builder.AppendLine("                },");
+            }
             builder.AppendLine($"                Reason = @\"{decision.Reason.Replace("\"", "\"\"")}\"");
             builder.AppendLine("            })");
             builder.AppendLine("        {");
@@ -548,6 +565,7 @@ namespace Controllers
         PickPlaceXYZOverflowRecoveryModuleController overflowController;
         PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController misalignmentBeltConveyorController;
         PickPlaceXYZUnderflowRecoveryModuleController underflowController;
+        PickPlaceXYZMisalignmentPalletRecoveryModuleController misalignmentPalletController;
         PickPlaceXYZPlaceholderRecoveryModuleController placeholderController;
         Controller activeController;
         long additionalRecoveryModuleExecutionMilliseconds;
@@ -577,6 +595,12 @@ namespace Controllers
                 underflowController =
                     new PickPlaceXYZUnderflowRecoveryModuleController(decision);
                 activeController = underflowController;
+            }
+            else if (decision.RecoveryModule == RecoveryModule.MisalignmentPallet)
+            {
+                misalignmentPalletController =
+                    new PickPlaceXYZMisalignmentPalletRecoveryModuleController(decision);
+                activeController = misalignmentPalletController;
             }
             else if (decision.RecoveryModule == RecoveryModule.Placeholder)
             {
@@ -611,6 +635,11 @@ namespace Controllers
                 || (activeController == underflowController
                     && underflowController != null
                     && !underflowController.ModuleComplete);
+            additionalRecoveryModuleActive =
+                additionalRecoveryModuleActive
+                || (activeController == misalignmentPalletController
+                    && misalignmentPalletController != null
+                    && !misalignmentPalletController.ModuleComplete);
 
             activeController.executionCount = executionCount;
             activeController.Execute(elapsedMilliseconds);
@@ -647,6 +676,17 @@ namespace Controllers
                 activeController = benignController;
                 AdditionalRecoveryModuleTransferred = true;
                 Debug.WriteLine("Underflow recovery module complete; control transferred to benign PickPlaceXYZ controller.");
+                return;
+            }
+
+            if (activeController == misalignmentPalletController
+                && misalignmentPalletController.ModuleComplete)
+            {
+                benignController = new PickPlaceXYZBenignRecoveryController(
+                    misalignmentPalletController.CreateContinuationDecision());
+                activeController = benignController;
+                AdditionalRecoveryModuleTransferred = true;
+                Debug.WriteLine("Misalignment pallet recovery module complete; control transferred to benign PickPlaceXYZ controller.");
                 return;
             }
 
@@ -1304,6 +1344,238 @@ namespace Controllers
                 StateIdentificationSatisfied = true,
                 RecoveryModule = RecoveryModule.BenignResume,
                 Reason = "Continuation from completed underflow recovery module."
+            };
+        }
+    }
+
+    public sealed class PickPlaceXYZMisalignmentPalletRecoveryModuleController : Controller
+    {
+        enum GrabReleaseStep
+        {
+            MoveAbovePickup,
+            LowerToPickup,
+            CloseGripper,
+            LiftAfterPickup,
+            MoveAbovePlace,
+            LowerToPlace,
+            OpenGripper,
+            LiftAfterPlace
+        }
+
+        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
+        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
+        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
+        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
+        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
+        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
+        MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
+        MemoryFloat spX = MemoryMap.Instance.GetFloat("SP X", MemoryType.Output);
+        MemoryFloat spY = MemoryMap.Instance.GetFloat("SP Y", MemoryType.Output);
+        MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
+        MemoryFloat posX = MemoryMap.Instance.GetFloat("X", MemoryType.Input);
+        MemoryFloat posY = MemoryMap.Instance.GetFloat("Y", MemoryType.Input);
+        MemoryFloat posZ = MemoryMap.Instance.GetFloat("Z", MemoryType.Input);
+        MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
+        FTRIG rtBoxAtPlace = new FTRIG();
+
+        readonly PickPlaceXYZGrabReleaseOperation[] operations;
+        readonly int counter;
+        readonly int exitBox;
+        readonly int stopExitBox;
+        int operationIndex;
+        TON grabTimer = new TON();
+        bool movingForwardToLoadingArea;
+        bool rollerConveyorRecoveryComplete;
+        GrabReleaseStep step = GrabReleaseStep.MoveAbovePickup;
+
+        public bool ModuleComplete { get; private set; }
+
+        public PickPlaceXYZMisalignmentPalletRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
+        {
+            operations = decision.GrabReleaseOperations ?? new PickPlaceXYZGrabReleaseOperation[0];
+            counter = decision.Counter;
+            exitBox = decision.ExitBox;
+            stopExitBox = decision.StopExitBox;
+            grabTimer.PT = 1000;
+        }
+
+        public override void Execute(int elapsedMilliseconds)
+        {
+            rtBoxAtPlace.CLK(!boxAtPlace.Value);
+
+            partConveyorForward.Value = false;
+            partConveyorBackward.Value = false;
+            boxConveyorForward.Value = false;
+            boxConveyorBackward.Value = false;
+            exitConveyor.Value = false;
+            c.Value = false;
+
+            // Temporarily bypass the initial roller conveyor recovery phase.
+            // if (!rollerConveyorRecoveryComplete)
+            // {
+            //     ExecuteRollerConveyorRecovery();
+            //     return;
+            // }
+
+            if (operationIndex >= operations.Length)
+            {
+                ModuleComplete = true;
+                return;
+            }
+
+            if (ExecuteGrabReleaseOperation(operations[operationIndex], elapsedMilliseconds))
+            {
+                operationIndex++;
+                step = GrabReleaseStep.MoveAbovePickup;
+            }
+        }
+
+        void ExecuteRollerConveyorRecovery()
+        {
+            grab.Value = false;
+            spZ.Value = 0f;
+
+            if (!movingForwardToLoadingArea)
+            {
+                if (rtBoxAtPlace.Q)
+                    movingForwardToLoadingArea = true;
+                else
+                {
+                    boxConveyorBackward.Value = true;
+                    return;
+                }
+            }
+
+            if (boxAtPlace.Value)
+            {
+                rollerConveyorRecoveryComplete = true;
+                return;
+            }
+
+            boxConveyorForward.Value = true;
+        }
+
+        bool ExecuteGrabReleaseOperation(PickPlaceXYZGrabReleaseOperation operation, int elapsedMilliseconds)
+        {
+            if (step == GrabReleaseStep.MoveAbovePickup)
+            {
+                grab.Value = false;
+                c.Value = operation.GrabCValue;
+                MoveTo(operation.PickupX, operation.PickupY, 0f);
+
+                if (Near(posX.Value, operation.PickupX, 0.01f)
+                    && Near(posY.Value, operation.PickupY, 0.01f)
+                    && Near(posZ.Value, 0f, 0.01f))
+                    step = GrabReleaseStep.LowerToPickup;
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.LowerToPickup)
+            {
+                grab.Value = false;
+                c.Value = operation.GrabCValue;
+                MoveTo(operation.PickupX, operation.PickupY, operation.PickupZ);
+
+                if (Near(posZ.Value, operation.PickupZ, 0.01f))
+                    step = GrabReleaseStep.CloseGripper;
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.CloseGripper)
+            {
+                grab.Value = true;
+                c.Value = operation.GrabCValue;
+                grabTimer.IN = true;
+
+                if (grabTimer.Q)
+                {
+                    grabTimer.IN = false;
+                    step = GrabReleaseStep.LiftAfterPickup;
+                }
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.LiftAfterPickup)
+            {
+                grab.Value = true;
+                c.Value = operation.ReleaseCValue;
+                MoveTo(operation.PickupX, operation.PickupY, 0f);
+
+                if (Near(posZ.Value, 0f, 0.01f))
+                    step = GrabReleaseStep.MoveAbovePlace;
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.MoveAbovePlace)
+            {
+                grab.Value = true;
+                c.Value = operation.ReleaseCValue;
+                MoveTo(operation.PlaceX, operation.PlaceY, 0f);
+
+                if (Near(posX.Value, operation.PlaceX, 0.01f)
+                    && Near(posY.Value, operation.PlaceY, 0.01f)
+                    && Near(posZ.Value, 0f, 0.01f))
+                    step = GrabReleaseStep.LowerToPlace;
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.LowerToPlace)
+            {
+                grab.Value = true;
+                c.Value = operation.ReleaseCValue;
+                MoveTo(operation.PlaceX, operation.PlaceY, operation.PlaceZ);
+
+                if (Near(posZ.Value, operation.PlaceZ, 0.01f))
+                    step = GrabReleaseStep.OpenGripper;
+
+                return false;
+            }
+
+            if (step == GrabReleaseStep.OpenGripper)
+            {
+                grab.Value = false;
+                c.Value = operation.ReleaseCValue;
+                step = GrabReleaseStep.LiftAfterPlace;
+
+                return false;
+            }
+
+            grab.Value = false;
+            c.Value = false;
+            MoveTo(operation.PlaceX, operation.PlaceY, 0f);
+
+            return Near(posZ.Value, 0f, 0.01f);
+        }
+
+        void MoveTo(float x, float y, float z)
+        {
+            spX.Value = x;
+            spY.Value = y;
+            spZ.Value = z;
+        }
+
+        bool Near(float val1, float val2, float delta)
+        {
+            return Math.Abs(val1 - val2) < delta;
+        }
+
+        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
+        {
+            return new PickPlaceXYZRecoveryDecision
+            {
+                PickingState = State.State0,
+                GrabState = State.State0,
+                Counter = 3,
+                ExitBox = exitBox,
+                StopExitBox = stopExitBox,
+                StateIdentificationSatisfied = true,
+                RecoveryModule = RecoveryModule.BenignResume,
+                Reason = "Continuation from completed misalignment_pallet recovery module."
             };
         }
     }

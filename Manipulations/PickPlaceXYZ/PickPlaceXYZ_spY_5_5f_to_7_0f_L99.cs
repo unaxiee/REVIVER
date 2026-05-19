@@ -207,8 +207,10 @@ namespace Controllers
 
             if (counter == 3)
             {
-                boxConveyorForward.Value = true;
-                exitConveyor.Value = true;
+                // boxConveyorForward.Value = true;
+                // exitConveyor.Value = true;
+
+                stopSignal = true;
 
                 if (ftBoxAtPlace.Q)
                 {
