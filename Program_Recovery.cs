@@ -45,7 +45,7 @@ namespace Controllers
         };
         static readonly string[] specificManipulationNameFragments =
         {
-            "counter"
+            "spY", "6_7"
         };
 
         static void Main(string[] args)
