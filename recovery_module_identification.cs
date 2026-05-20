@@ -261,7 +261,7 @@ namespace Controllers
                 return BuildBottomBoxMisalignedOperations();
 
             if (IsTopBoxMisaligned(snapshot))
-                return BuildTopBoxMisalignedOperation();
+                return BuildTopBoxMisalignedOperations();
 
             return BuildThreeBoxMisalignedOperations();
         }
@@ -285,11 +285,11 @@ namespace Controllers
             return false;
         }
 
-        static PickPlaceXYZGrabReleaseOperation[] BuildTopBoxMisalignedOperation()
+        static PickPlaceXYZGrabReleaseOperation[] BuildTopBoxMisalignedOperations()
         {
             return new[]
             {
-                new PickPlaceXYZGrabReleaseOperation(3.1f, 7f, 5f, 3.1f, 5.3f, 5f, true, true)
+                new PickPlaceXYZGrabReleaseOperation(3.1f, 5.7f, 5f, 3.1f, 5.3f, 5f, true, true)
             };
         }
 
@@ -307,9 +307,9 @@ namespace Controllers
         {
             return new[]
             {
-                new PickPlaceXYZGrabReleaseOperation(3.1f, 5.2f, 5f, 8.3f, 5.5f, 0.2f, true, false),
-                new PickPlaceXYZGrabReleaseOperation(3.2f, 3.8f, 10f, 3.1f, 3.8f, 10f, false, false),
-                new PickPlaceXYZGrabReleaseOperation(3.2f, 6.7f, 10f, 3.1f, 6.7f, 10f, false, false),
+                new PickPlaceXYZGrabReleaseOperation(3.1f, 4.1f, 5f, 8.3f, 5.5f, 0.2f, true, false),
+                new PickPlaceXYZGrabReleaseOperation(4f, 3.8f, 10f, 3.1f, 3.8f, 10f, false, false),
+                new PickPlaceXYZGrabReleaseOperation(3.7f, 6.7f, 10f, 3.1f, 6.7f, 10f, false, false),
                 new PickPlaceXYZGrabReleaseOperation(8.3f, 5.5f, 0.2f, 3.1f, 5.3f, 5f, false, true)
             };
         }

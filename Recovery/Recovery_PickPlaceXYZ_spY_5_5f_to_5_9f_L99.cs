@@ -3,9 +3,9 @@
 
 namespace Controllers
 {
-    public sealed class Recovery_PickPlaceXYZ_spX_8_3f_to_8_8f_L98 : Recovery_PickPlaceXYZ
+    public sealed class Recovery_PickPlaceXYZ_spY_5_5f_to_5_9f_L99 : Recovery_PickPlaceXYZ
     {
-        public Recovery_PickPlaceXYZ_spX_8_3f_to_8_8f_L98()
+        public Recovery_PickPlaceXYZ_spY_5_5f_to_5_9f_L99()
             : base(new PickPlaceXYZRecoveryDecision
             {
                 PickingState = State.State0,
@@ -17,9 +17,9 @@ namespace Controllers
                 RecoveryModule = RecoveryModule.MisalignmentPallet,
                 GrabReleaseOperations = new[]
                 {
-                    new PickPlaceXYZGrabReleaseOperation(3.1f, 5.55f, 5f, 8.3f, 5.5f, 0.2f, true, false),
-                    new PickPlaceXYZGrabReleaseOperation(2.6f, 3.8f, 10f, 3.1f, 3.8f, 10f, false, false),
-                    new PickPlaceXYZGrabReleaseOperation(2.6f, 6.7f, 10f, 3.1f, 6.7f, 10f, false, false),
+                    new PickPlaceXYZGrabReleaseOperation(2.9f, 5.3f, 5f, 8.3f, 5.5f, 0.2f, true, false),
+                    new PickPlaceXYZGrabReleaseOperation(3.1f, 6.3f, 10f, 3.1f, 6.7f, 10f, false, false),
+                    new PickPlaceXYZGrabReleaseOperation(3.1f, 3.4f, 10f, 3.1f, 3.8f, 10f, false, false),
                     new PickPlaceXYZGrabReleaseOperation(8.3f, 5.5f, 0.2f, 3.1f, 5.3f, 5f, false, true),
                 },
                 Reason = @"Stage 1 state identification skipped for label 'misalignment_pallet'; defer to recovery module identification. Stage 2 recovery module: misalignment_pallet module selected. Misalignment pallet recovery will run 4 configured grab-release operations before benign resume."
@@ -32,7 +32,7 @@ namespace Controllers
         // partConveyorForward=False, boxConveyorForward=False, exitConveyor=False
         // grab=False, c=True
         // spX=3.1, spY=5.3, spZ=5
-        // posX=3.1001012, posY=5.3000793, posZ=4.999819
+        // posX=3.100119, posY=5.3000793, posZ=4.9999094
         // counter=3, exitBox=0
     }
 }

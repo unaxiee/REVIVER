@@ -22,6 +22,8 @@ PickPlaceXYZ_spY_5_3f_to_4_0f_L129,misalignment_pallet,MisalignmentPallet,7.461,
 PickPlaceXYZ_spY_5_3f_to_5_0f_L129,misalignment_pallet,MisalignmentPallet,5.448,15.852,1241.001,6478.000
 PickPlaceXYZ_spY_5_3f_to_6_0f_L129,misalignment_pallet,MisalignmentPallet,4.118,11.325,1228.862,6593.000
 PickPlaceXYZ_spY_5_3f_to_7_0f_L129,misalignment_pallet,MisalignmentPallet,13.294,24.847,1259.180,6729.000
+PickPlaceXYZ_spX_8_3f_to_7_6f_L98,misalignment_pallet,MisalignmentPallet,3.728,11.510,1183.138,28159.000
+PickPlaceXYZ_spX_8_3f_to_7_7f_L98,misalignment_pallet,MisalignmentPallet,10.287,20.317,1164.366,28301.000
 PickPlaceXYZ_spX_8_3f_to_7_8f_L98,misalignment_pallet,MisalignmentPallet,3.546,10.743,1946.326,28178.000
 PickPlaceXYZ_spX_8_3f_to_7_9f_L98,misalignment_pallet,MisalignmentPallet,20.240,23.790,1227.398,28157.000
 PickPlaceXYZ_spX_8_3f_to_8_0f_L98,misalignment_pallet,MisalignmentPallet,4.099,12.380,1171.413,28146.000
@@ -32,3 +34,17 @@ PickPlaceXYZ_spX_8_3f_to_8_5f_L98,misalignment_pallet,MisalignmentPallet,3.806,1
 PickPlaceXYZ_spX_8_3f_to_8_6f_L98,misalignment_pallet,MisalignmentPallet,13.863,17.862,1232.405,28226.000
 PickPlaceXYZ_spX_8_3f_to_8_7f_L98,misalignment_pallet,MisalignmentPallet,3.939,11.953,1235.267,28281.000
 PickPlaceXYZ_spX_8_3f_to_8_8f_L98,misalignment_pallet,MisalignmentPallet,5.059,11.739,1218.560,28352.000
+PickPlaceXYZ_spX_8_3f_to_8_9f_L98,misalignment_pallet,MisalignmentPallet,17.207,21.726,2110.504,28362.000
+PickPlaceXYZ_spX_8_3f_to_9_0f_L98,misalignment_pallet,MisalignmentPallet,3.699,11.942,1254.548,28519.000
+PickPlaceXYZ_spY_5_5f_to_4_9f_L99,misalignment_pallet,MisalignmentPallet,4.157,11.541,1269.382,28337.000
+PickPlaceXYZ_spY_5_5f_to_5_0f_L99,misalignment_pallet,MisalignmentPallet,12.629,16.545,1207.237,28227.000
+PickPlaceXYZ_spY_5_5f_to_5_1f_L99,misalignment_pallet,MisalignmentPallet,15.119,20.640,1224.887,28288.000
+PickPlaceXYZ_spY_5_5f_to_5_2f_L99,misalignment_pallet,MisalignmentPallet,5.704,11.942,1242.549,28104.000
+PickPlaceXYZ_spY_5_5f_to_5_3f_L99,misalignment_pallet,MisalignmentPallet,10.884,31.046,1234.989,28016.000
+PickPlaceXYZ_spY_5_5f_to_5_4f_L99,misalignment_pallet,MisalignmentPallet,4.125,11.327,1244.065,27786.000
+PickPlaceXYZ_spY_5_5f_to_5_6f_L99,misalignment_pallet,MisalignmentPallet,11.752,15.830,2039.138,27912.000
+PickPlaceXYZ_spY_5_5f_to_5_7f_L99,misalignment_pallet,MisalignmentPallet,17.881,15.256,1288.829,28039.000
+PickPlaceXYZ_spY_5_5f_to_5_8f_L99,misalignment_pallet,MisalignmentPallet,8.062,20.412,1256.568,28209.000
+PickPlaceXYZ_spY_5_5f_to_5_9f_L99,misalignment_pallet,MisalignmentPallet,3.841,11.458,1188.455,28163.000
+PickPlaceXYZ_spY_5_5f_to_6_0f_L99,misalignment_pallet,MisalignmentPallet,10.547,19.496,1232.682,28352.000
+PickPlaceXYZ_spY_5_5f_to_6_1f_L99,misalignment_pallet,MisalignmentPallet,9.417,24.184,1241.841,28270.000

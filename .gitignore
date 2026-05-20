@@ -12,4 +12,6 @@ Videos/Recovery/
 Videos/images/
 pyvenv.cfg
 Recovery/.runtime_build
+Recovery/recovery_timing.csv
+Recovery/recovery_manifest.csv
 match.csv

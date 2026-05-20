@@ -45,7 +45,7 @@ namespace Controllers
         };
         static readonly string[] specificManipulationNameFragments =
         {
-            "spX", "98", "8_2"
+            "grabState"
         };
 
         static void Main(string[] args)
@@ -1411,11 +1411,11 @@ namespace Controllers
             c.Value = false;
 
             // Temporarily bypass the initial roller conveyor recovery phase.
-            // if (!rollerConveyorRecoveryComplete)
-            // {
-            //     ExecuteRollerConveyorRecovery();
-            //     return;
-            // }
+            if (!rollerConveyorRecoveryComplete)
+            {
+                ExecuteRollerConveyorRecovery();
+                return;
+            }
 
             if (operationIndex >= operations.Length)
             {
