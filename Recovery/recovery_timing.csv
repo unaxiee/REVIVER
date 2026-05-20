@@ -1,0 +1,11 @@
+manipulation,label,recovery_module,state_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms
+PickPlaceXYZ_spX_8_3f_to_7_8f_L98,misalignment_pallet,MisalignmentPallet,3.546,10.743,1946.326,28178.000
+PickPlaceXYZ_spX_8_3f_to_7_9f_L98,misalignment_pallet,MisalignmentPallet,20.240,23.790,1227.398,28157.000
+PickPlaceXYZ_spX_8_3f_to_8_0f_L98,misalignment_pallet,MisalignmentPallet,4.099,12.380,1171.413,28146.000
+PickPlaceXYZ_spX_8_3f_to_8_1f_L98,misalignment_pallet,MisalignmentPallet,4.726,11.781,1155.656,28022.000
+PickPlaceXYZ_spX_8_3f_to_8_2f_L98,misalignment_pallet,MisalignmentPallet,13.063,24.079,1162.512,27801.000
+PickPlaceXYZ_spX_8_3f_to_8_4f_L98,misalignment_pallet,MisalignmentPallet,4.199,11.852,1326.314,27898.000
+PickPlaceXYZ_spX_8_3f_to_8_5f_L98,misalignment_pallet,MisalignmentPallet,3.806,11.596,1233.910,27996.000
+PickPlaceXYZ_spX_8_3f_to_8_6f_L98,misalignment_pallet,MisalignmentPallet,13.863,17.862,1232.405,28226.000
+PickPlaceXYZ_spX_8_3f_to_8_7f_L98,misalignment_pallet,MisalignmentPallet,3.939,11.953,1235.267,28281.000
+PickPlaceXYZ_spX_8_3f_to_8_8f_L98,misalignment_pallet,MisalignmentPallet,5.059,11.739,1218.560,28352.000
