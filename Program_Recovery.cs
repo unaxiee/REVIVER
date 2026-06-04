@@ -5,12 +5,14 @@
 //-----------------------------------------------------------------------------
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 
 using ScreenRecorderLib;
@@ -21,39 +23,73 @@ namespace Controllers
 {
     class Program_Recovery
     {
+        private sealed class CsvSignal
+        {
+            public string Name { get; }
+            public Func<string> ReadValue { get; }
+
+            public CsvSignal(string name, Func<string> readValue)
+            {
+                Name = name;
+                ReadValue = readValue;
+            }
+        }
+
         sealed class ManipulationRun
         {
             public string FilePath { get; set; }
             public string Label { get; set; }
+            public string Split { get; set; }
         }
 
         static Recorder _rec;
 
         public const int CycleTime = 8;
+        public const int CsvLogIntervalExecutions = 10;
         public const int PauseAtExecutionCount = 2000;
         public const int MaxRecoveryExecutions = 4000;
         public const bool EnableRecording = false;
+        public const bool EnableManipulatedControllerLogging = true;
 
+        static readonly string controllerRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers";
         static readonly string sceneName = "PickPlaceXYZ";
-        static readonly string manipulationRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations";
-        static readonly string recoveryScriptRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Recovery";
-        static readonly string videoRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\Recovery";
-        static readonly string matchCsvPath = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\match.csv";
-        static readonly string[] specificMatchLabels =
+        static readonly string manipulationRoot = Path.Combine(controllerRoot, "Manipulations");
+        static readonly string recoveryScriptRoot = Path.Combine(controllerRoot, "Recovery");
+        static readonly string recoveryOriginalLogRoot = Path.Combine(controllerRoot, "Logs", "Recovery", "original");
+        static readonly string recoveryEnhancedLogRoot = Path.Combine(controllerRoot, "Logs", "Recovery", "enhanced");
+        static readonly string enhanceCsvScriptPath = Path.Combine(controllerRoot, "Logs", "enhance_csv_with_box_positions.py");
+        static readonly string videoRoot = Path.Combine(controllerRoot, "Videos", "Recovery");
+        static readonly string inventoryCsvPath = Path.Combine(controllerRoot, "clusters_csv_inventory.csv");
+        static readonly string[] specificInventoryLabels =
         {
-            "misalignment_pallet"
+        
+        };
+        static readonly string[] specificInventorySplits =
+        {
+        
+        };
+        static readonly string[] specificManipulationNames =
+        {
+            "PickPlaceXYZ_spX_3_1f_to_3_12f_L128",
+            "PickPlaceXYZ_spX_3_1f_to_2_08f_L121",
+            "PickPlaceXYZ_spX_3_1f_to_2_36f_L121",
+            "PickPlaceXYZ_spX_3_1f_to_2_71f_L121",
+            "PickPlaceXYZ_spX_3_1f_to_3_14f_L121"
         };
         static readonly string[] specificManipulationNameFragments =
         {
-            "grabState"
+
+        };
+        static readonly string[] excludedManipulationNameFragments =
+        {
+        
         };
 
         static void Main(string[] args)
         {
             string manipulationFolder = Path.Combine(manipulationRoot, sceneName);
-            ManipulationRun[] manipulationRuns = ReadMatchingManipulationRuns(manipulationFolder);
+            ManipulationRun[] manipulationRuns = ReadInventoryManipulationRuns(manipulationFolder);
             Debug.WriteLine($"Found {manipulationRuns.Length} manipulation classes.");
-            InitializeRecoveryManifest();
             InitializeRecoveryTimingLog();
 
             MemoryBit start = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Output);
@@ -64,7 +100,17 @@ namespace Controllers
             {
                 string manipulationFile = manipulationRun.FilePath;
                 string recoveryCase = manipulationRun.Label;
+                string split = manipulationRun.Split;
                 string controllerName = Path.GetFileNameWithoutExtension(manipulationFile);
+                string relativeFolder = Path.GetDirectoryName(Path.GetRelativePath(manipulationFolder, manipulationFile));
+                string originalCsvFolder = Path.Combine(recoveryOriginalLogRoot, relativeFolder ?? string.Empty);
+                string enhancedCsvFolder = Path.Combine(recoveryEnhancedLogRoot, relativeFolder ?? string.Empty);
+                Directory.CreateDirectory(originalCsvFolder);
+                Directory.CreateDirectory(enhancedCsvFolder);
+
+                string originalCsvPath = Path.Combine(originalCsvFolder, $"{controllerName}.csv");
+                string enhancedCsvPath = Path.Combine(enhancedCsvFolder, $"{controllerName}.csv");
+
                 Type controllerType = Type.GetType($"Controllers.{controllerName}");
                 if (controllerType == null)
                 {
@@ -80,26 +126,56 @@ namespace Controllers
                 try
                 {
                     Controller controller = (Controller)Activator.CreateInstance(controllerType);
+                    List<CsvSignal> loggedSignals = EnableManipulatedControllerLogging
+                        ? DiscoverLoggedSignals(manipulationFile, controller)
+                        : new List<CsvSignal>();
                     Debug.WriteLine($"Running manipulated controller: {controllerName}, label={recoveryCase}");
 
                     Stopwatch stopwatch = Stopwatch.StartNew();
+                    Stopwatch runStopwatch = Stopwatch.StartNew();
                     int executionCount = 0;
+                    StreamWriter csvWriter = null;
 
-                    while (!controller.stopSignal && executionCount < PauseAtExecutionCount)
+                    try
                     {
-                        MemoryMap.Instance.Update();
-
-                        if (running.Value)
+                        if (EnableManipulatedControllerLogging)
                         {
-                            stopwatch.Stop();
-                            controller.executionCount = executionCount;
-                            controller.Execute((int)stopwatch.ElapsedMilliseconds);
-                            executionCount++;
-                            stopwatch.Restart();
+                            csvWriter = new StreamWriter(originalCsvPath, false);
+                            WriteCsvHeader(csvWriter, loggedSignals);
                         }
 
-                        Thread.Sleep(CycleTime);
+                        while (!controller.stopSignal && executionCount < PauseAtExecutionCount)
+                        {
+                            MemoryMap.Instance.Update();
+
+                            if (running.Value)
+                            {
+                                stopwatch.Stop();
+                                controller.executionCount = executionCount;
+                                controller.Execute((int)stopwatch.ElapsedMilliseconds);
+
+                                if (executionCount % CsvLogIntervalExecutions == 0)
+                                    WriteCsvRowIfEnabled(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+
+                                if (controller.captureSignal)
+                                    controller.captureSignal = false;
+
+                                executionCount++;
+                                stopwatch.Restart();
+                            }
+
+                            Thread.Sleep(CycleTime);
+                        }
+
+                        WriteCsvRowIfEnabled(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
                     }
+                    finally
+                    {
+                        csvWriter?.Dispose();
+                    }
+
+                    if (EnableManipulatedControllerLogging)
+                        EnhanceRecoveryLog(originalCsvPath, enhancedCsvPath);
 
                     pause.Value = true;
                     MemoryMap.Instance.Update();
@@ -107,24 +183,74 @@ namespace Controllers
 
                     Stopwatch setupStopwatch = Stopwatch.StartNew();
 
-                    Stopwatch identificationStopwatch = Stopwatch.StartNew();
                     PickPlaceXYZSnapshot snapshot = PickPlaceXYZSnapshot.Read(controller);
-                    PickPlaceXYZRecoveryDecision decision = PickPlaceXYZRecoveryStateDecider.Decide(snapshot, recoveryCase);
 
+                    Stopwatch stateIdentificationStopwatch = Stopwatch.StartNew();
+                    PickPlaceXYZRecoveryDecision decision = PickPlaceXYZRecoveryStateDecider.Decide(snapshot, recoveryCase);
+                    stateIdentificationStopwatch.Stop();
+
+                    TimeSpan recoveryModuleIdentificationElapsed = TimeSpan.Zero;
                     if (!decision.StateIdentificationSatisfied)
                     {
+                        Stopwatch recoveryModuleIdentificationStopwatch = Stopwatch.StartNew();
                         PickPlaceXYZRecoveryModuleDecision moduleDecision =
-                            PickPlaceXYZRecoveryModuleIdentifier.Decide(snapshot, decision, recoveryCase);
+                            PickPlaceXYZRecoveryModuleIdentifier.Decide(snapshot, decision, recoveryCase, controllerName);
                         decision = moduleDecision.RecoveryDecision;
-                    }
+                        recoveryModuleIdentificationStopwatch.Stop();
+                        recoveryModuleIdentificationElapsed = recoveryModuleIdentificationStopwatch.Elapsed;
 
-                    identificationStopwatch.Stop();
+                        if (moduleDecision.ClassificationFailed)
+                        {
+                            Debug.WriteLine($"[SKIP] Recovery module classification failed for {controllerName}: {moduleDecision.Reason}");
+                            setupStopwatch.Stop();
+                            AppendRecoveryTimingLog(
+                                controllerName,
+                                split,
+                                recoveryCase,
+                                "classify failed",
+                                stateIdentificationStopwatch.Elapsed,
+                                recoveryModuleIdentificationElapsed,
+                                TimeSpan.Zero,
+                                TimeSpan.Zero,
+                                TimeSpan.Zero,
+                                BuildFailedClassificationRobustnessLog(recoveryCase, moduleDecision.Classification));
+
+                            pause.Value = false;
+                            MemoryMap.Instance.Update();
+                            Thread.Sleep(500);
+                            Shutdown(start);
+                            continue;
+                        }
+
+                        if (IsUnexpectedRecoveryModuleDecision(recoveryCase, decision.RecoveryModule))
+                        {
+                            Debug.WriteLine(
+                                $"[SKIP] Recovery module mismatch for {controllerName}: " +
+                                $"label={recoveryCase}, selected={decision.RecoveryModule}. {moduleDecision.Reason}");
+                            setupStopwatch.Stop();
+                            AppendRecoveryTimingLog(
+                                controllerName,
+                                split,
+                                recoveryCase,
+                                decision.RecoveryModule.ToString(),
+                                stateIdentificationStopwatch.Elapsed,
+                                recoveryModuleIdentificationElapsed,
+                                TimeSpan.Zero,
+                                TimeSpan.Zero,
+                                TimeSpan.Zero,
+                                BuildMismatchRobustnessLog(recoveryCase, decision.RecoveryModule, moduleDecision.Classification));
+
+                            pause.Value = false;
+                            MemoryMap.Instance.Update();
+                            Thread.Sleep(500);
+                            Shutdown(start);
+                            continue;
+                        }
+                    }
 
                     Stopwatch scriptWriteStopwatch = Stopwatch.StartNew();
                     (string recoveryScriptPath, string recoveryClassName) = WriteRecoveryScript(controllerName, snapshot, decision);
                     scriptWriteStopwatch.Stop();
-
-                    AppendRecoveryManifest(controllerName, recoveryClassName, recoveryScriptPath, decision);
 
                     Debug.WriteLine(
                         $"Recovery decision for {controllerName}: pickingState={decision.PickingState}, " +
@@ -165,9 +291,11 @@ namespace Controllers
 
                     AppendRecoveryTimingLog(
                         controllerName,
+                        split,
                         recoveryCase,
-                        decision.RecoveryModule,
-                        identificationStopwatch.Elapsed,
+                        decision.RecoveryModule.ToString(),
+                        stateIdentificationStopwatch.Elapsed,
+                        recoveryModuleIdentificationElapsed,
                         scriptWriteStopwatch.Elapsed,
                         compilationStopwatch.Elapsed,
                         GetAdditionalRecoveryModuleExecutionElapsed(recoveryController));
@@ -240,28 +368,202 @@ namespace Controllers
             Debug.WriteLine($"Recording status: {e.Status}");
         }
 
-        static ManipulationRun[] ReadMatchingManipulationRuns(string manipulationFolder)
+        static List<CsvSignal> DiscoverLoggedSignals(string controllerSourcePath, Controller controller)
         {
-            if (!File.Exists(matchCsvPath))
-                throw new FileNotFoundException("Could not find match.csv for recovery filtering.", matchCsvPath);
+            List<CsvSignal> signals = new List<CsvSignal>();
 
-            return File.ReadLines(matchCsvPath)
+            string source = File.ReadAllText(controllerSourcePath);
+            Regex signalPattern = new Regex(
+                @"Memory(?<signalType>Bit|Float)\s+(?<fieldName>\w+)\s*=\s*MemoryMap\.Instance\.Get(?<getterType>Bit|Float)\(""(?<memoryName>[^""]+)"",\s*MemoryType\.(?<memoryType>Input|Output)\);");
+            HashSet<string> seenNames = new HashSet<string>(signals.Select(signal => signal.Name));
+
+            foreach (Match match in signalPattern.Matches(source))
+            {
+                string signalType = match.Groups["signalType"].Value;
+                string getterType = match.Groups["getterType"].Value;
+                if (signalType != getterType)
+                    continue;
+
+                string fieldName = match.Groups["fieldName"].Value;
+                if (!seenNames.Add(fieldName))
+                    continue;
+
+                string memoryName = match.Groups["memoryName"].Value;
+                MemoryType memoryType = (MemoryType)Enum.Parse(typeof(MemoryType), match.Groups["memoryType"].Value);
+
+                if (signalType == "Bit")
+                    TryAddMemoryBit(signals, fieldName, memoryName, memoryType);
+                else
+                    TryAddMemoryFloat(signals, fieldName, memoryName, memoryType);
+            }
+
+            AddControllerFieldSignal<int>(signals, controller, "counter", value => value.ToString(CultureInfo.InvariantCulture));
+
+            return signals;
+        }
+
+        static void AddControllerFieldSignal<T>(List<CsvSignal> signals, Controller controller, string fieldName, Func<T, string> formatValue)
+        {
+            FieldInfo field = controller.GetType().GetField(fieldName, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (field == null || field.FieldType != typeof(T))
+                return;
+
+            signals.Add(new CsvSignal(fieldName, () => formatValue((T)field.GetValue(controller))));
+        }
+
+        static void TryAddMemoryBit(List<CsvSignal> signals, string csvName, string memoryName, MemoryType memoryType)
+        {
+            try
+            {
+                MemoryBit bit = MemoryMap.Instance.GetBit(memoryName, memoryType);
+                if (bit == null)
+                {
+                    Debug.WriteLine($"Skipping recovery CSV log bit '{memoryName}': MemoryMap returned null.");
+                    return;
+                }
+
+                signals.Add(new CsvSignal(csvName, () => bit.Value ? "1" : "0"));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Skipping recovery CSV log bit '{memoryName}': {ex.Message}");
+            }
+        }
+
+        static void TryAddMemoryFloat(List<CsvSignal> signals, string csvName, string memoryName, MemoryType memoryType)
+        {
+            try
+            {
+                MemoryFloat memoryFloat = MemoryMap.Instance.GetFloat(memoryName, memoryType);
+                if (memoryFloat == null)
+                {
+                    Debug.WriteLine($"Skipping recovery CSV log float '{memoryName}': MemoryMap returned null.");
+                    return;
+                }
+
+                signals.Add(new CsvSignal(csvName, () => memoryFloat.Value.ToString("G", CultureInfo.InvariantCulture)));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Skipping recovery CSV log float '{memoryName}': {ex.Message}");
+            }
+        }
+
+        static void WriteCsvHeader(StreamWriter writer, List<CsvSignal> signals)
+        {
+            string header = "timestamp_ms,execution_count," + string.Join(",", signals.Select(signal => EscapeCsv(signal.Name)));
+            writer.WriteLine(header);
+            writer.Flush();
+        }
+
+        static void WriteCsvRow(StreamWriter writer, long elapsedMs, int executionCount, List<CsvSignal> signals)
+        {
+            string[] values = signals
+                .Select(signal => EscapeCsv(signal.ReadValue()))
+                .ToArray();
+
+            writer.WriteLine($"{elapsedMs},{executionCount},{string.Join(",", values)}");
+            writer.Flush();
+        }
+
+        static void WriteCsvRowIfEnabled(StreamWriter writer, long elapsedMs, int executionCount, List<CsvSignal> signals)
+        {
+            if (!EnableManipulatedControllerLogging || writer == null)
+                return;
+
+            WriteCsvRow(writer, elapsedMs, executionCount, signals);
+        }
+
+        static void EnhanceRecoveryLog(string originalCsvPath, string enhancedCsvPath)
+        {
+            if (!File.Exists(enhanceCsvScriptPath))
+            {
+                Debug.WriteLine($"Skipping enhanced recovery CSV: script not found at {enhanceCsvScriptPath}");
+                return;
+            }
+
+            Directory.CreateDirectory(Path.GetDirectoryName(enhancedCsvPath));
+
+            string code =
+                "import sys\n" +
+                "from enhance_csv_with_box_positions import enhance_csv_with_box_positions\n" +
+                $"success, message, _ = enhance_csv_with_box_positions({PythonString(originalCsvPath)}, {PythonString(enhancedCsvPath)})\n" +
+                "print(message)\n" +
+                "sys.exit(0 if success else 1)\n";
+
+            ProcessStartInfo startInfo = new ProcessStartInfo
+            {
+                FileName = "python",
+                WorkingDirectory = Path.GetDirectoryName(enhanceCsvScriptPath),
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("-c");
+            startInfo.ArgumentList.Add(code);
+
+            try
+            {
+                using (Process process = Process.Start(startInfo))
+                {
+                    string stdout = process.StandardOutput.ReadToEnd();
+                    string stderr = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
+
+                    if (!string.IsNullOrWhiteSpace(stdout))
+                        Debug.WriteLine(stdout);
+                    if (!string.IsNullOrWhiteSpace(stderr))
+                        Debug.WriteLine(stderr);
+
+                    if (process.ExitCode != 0)
+                        Debug.WriteLine($"Enhanced recovery CSV generation failed for {Path.GetFileName(originalCsvPath)} with exit code {process.ExitCode}.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Enhanced recovery CSV generation failed for {Path.GetFileName(originalCsvPath)}: {ex.Message}");
+            }
+        }
+
+        static string PythonString(string value)
+        {
+            return "'" + value.Replace("\\", "\\\\").Replace("'", "\\'") + "'";
+        }
+
+        static ManipulationRun[] ReadInventoryManipulationRuns(string manipulationFolder)
+        {
+            if (!File.Exists(inventoryCsvPath))
+                throw new FileNotFoundException("Could not find clusters_csv_inventory.csv for recovery input.", inventoryCsvPath);
+
+            Dictionary<string, string> manipulationFilesByName = Directory
+                .GetFiles(manipulationFolder, "*.cs", SearchOption.AllDirectories)
+                .GroupBy(path => Path.GetFileName(path), StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+            return File.ReadLines(inventoryCsvPath)
                 .Skip(1)
-                .Select(ParseMatchRow)
-                .Where(row => !string.IsNullOrWhiteSpace(row.CsvName))
+                .Select(ParseInventoryRow)
+                .Where(row => !string.IsNullOrWhiteSpace(row.FileName))
                 .Where(row => MatchesSpecificLabels(row.Label))
-                .Where(row => MatchesSpecificNameFragments(Path.GetFileNameWithoutExtension(row.CsvName)))
+                .Where(row => MatchesSpecificSplits(row.Split))
+                .Where(row => MatchesSpecificManipulationNames(Path.GetFileNameWithoutExtension(row.FileName)))
+                .Where(row => MatchesSpecificNameFragments(Path.GetFileNameWithoutExtension(row.FileName)))
+                .Where(row => DoesNotMatchExcludedNameFragments(Path.GetFileNameWithoutExtension(row.FileName)))
                 .Select(row => new ManipulationRun
                 {
-                    FilePath = Path.Combine(manipulationFolder, Path.ChangeExtension(row.CsvName, ".cs")),
-                    Label = row.Label
+                    FilePath = ResolveManipulationFilePath(
+                        manipulationFilesByName,
+                        Path.ChangeExtension(row.FileName, ".cs")),
+                    Label = row.Label,
+                    Split = row.Split
                 })
                 .Where(run =>
                 {
-                    if (File.Exists(run.FilePath))
+                    if (!string.IsNullOrWhiteSpace(run.FilePath) && File.Exists(run.FilePath))
                         return true;
 
-                    Debug.WriteLine($"[SKIP] match.csv references missing manipulation file: {run.FilePath}");
+                    Debug.WriteLine("[SKIP] clusters_csv_inventory.csv references missing manipulation file.");
                     return false;
                 })
                 .GroupBy(run => run.FilePath)
@@ -269,13 +571,41 @@ namespace Controllers
                 .ToArray();
         }
 
+        static string ResolveManipulationFilePath(
+            Dictionary<string, string> manipulationFilesByName,
+            string manipulationFileName)
+        {
+            if (manipulationFilesByName.TryGetValue(manipulationFileName, out string path))
+                return path;
+
+            return null;
+        }
+
         static bool MatchesSpecificLabels(string label)
         {
-            if (specificMatchLabels.Length == 0)
+            if (specificInventoryLabels.Length == 0)
                 return true;
 
-            return specificMatchLabels.Any(specificLabel =>
+            return specificInventoryLabels.Any(specificLabel =>
                 string.Equals(label, specificLabel, StringComparison.OrdinalIgnoreCase));
+        }
+
+        static bool MatchesSpecificSplits(string split)
+        {
+            if (specificInventorySplits.Length == 0)
+                return true;
+
+            return specificInventorySplits.Any(specificSplit =>
+                string.Equals(split, specificSplit, StringComparison.OrdinalIgnoreCase));
+        }
+
+        static bool MatchesSpecificManipulationNames(string manipulationName)
+        {
+            if (specificManipulationNames.Length == 0)
+                return true;
+
+            return specificManipulationNames.Any(specificName =>
+                string.Equals(manipulationName, specificName, StringComparison.OrdinalIgnoreCase));
         }
 
         static bool MatchesSpecificNameFragments(string manipulationName)
@@ -287,27 +617,29 @@ namespace Controllers
                 manipulationName.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
-        static (string CsvName, string Label) ParseMatchRow(string line)
+        static bool DoesNotMatchExcludedNameFragments(string manipulationName)
         {
-            string[] columns = line.Split(',');
-            if (columns.Length < 2)
-                return (string.Empty, string.Empty);
+            if (excludedManipulationNameFragments.Length == 0)
+                return true;
 
-            return (columns[0].Trim(), columns[1].Trim());
+            return !excludedManipulationNameFragments.Any(fragment =>
+                manipulationName.IndexOf(fragment, StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
-        static void InitializeRecoveryManifest()
+        static (string FileName, string Split, string Label) ParseInventoryRow(string line)
         {
-            Directory.CreateDirectory(recoveryScriptRoot);
-            string path = Path.Combine(recoveryScriptRoot, "recovery_manifest.csv");
-            EnsureCsvHeader(path, "manipulation,recovery_class,recovery_script,picking_state,grab_state,counter,exit_box,recovery_module,reason");
+            string[] columns = line.Split(',');
+            if (columns.Length < 3)
+                return (string.Empty, string.Empty, string.Empty);
+
+            return (columns[0].Trim(), columns[1].Trim(), columns[2].Trim());
         }
 
         static void InitializeRecoveryTimingLog()
         {
             Directory.CreateDirectory(recoveryScriptRoot);
             string path = Path.Combine(recoveryScriptRoot, "recovery_timing.csv");
-            EnsureCsvHeader(path, "manipulation,label,recovery_module,state_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms");
+            EnsureCsvHeader(path, "manipulation,split,label,recovery_module,state_identification_ms,recovery_module_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms,expected_module_robustness,selected_module_robustness,max_robustness_module,max_robustness");
         }
 
         static void EnsureCsvHeader(string path, string header)
@@ -324,54 +656,160 @@ namespace Controllers
             File.WriteAllText(path, header + Environment.NewLine);
         }
 
-        static void AppendRecoveryManifest(
+        static void AppendRecoveryTimingLog(
             string manipulationName,
-            string recoveryClassName,
-            string recoveryScriptPath,
-            PickPlaceXYZRecoveryDecision decision)
+            string split,
+            string label,
+            string recoveryModule,
+            TimeSpan stateIdentificationElapsed,
+            TimeSpan recoveryModuleIdentificationElapsed,
+            TimeSpan scriptWriteElapsed,
+            TimeSpan compilationElapsed,
+            TimeSpan recoveryExecutionElapsed,
+            RecoveryRobustnessLog robustnessLog = null)
         {
-            string path = Path.Combine(recoveryScriptRoot, "recovery_manifest.csv");
+            string path = Path.Combine(recoveryScriptRoot, "recovery_timing.csv");
+            bool hasAdditionalRecoveryModule =
+                recoveryModule != RecoveryModule.BenignResume.ToString() &&
+                recoveryModule != "classify failed";
             string[] values =
             {
                 manipulationName,
-                recoveryClassName,
-                recoveryScriptPath,
-                decision.PickingState.ToString(),
-                decision.GrabState.ToString(),
-                decision.Counter.ToString(CultureInfo.InvariantCulture),
-                decision.ExitBox.ToString(CultureInfo.InvariantCulture),
-                decision.RecoveryModule.ToString(),
-                decision.Reason
+                split,
+                label,
+                recoveryModule,
+                stateIdentificationElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
+                recoveryModuleIdentificationElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
+                scriptWriteElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
+                compilationElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
+                hasAdditionalRecoveryModule
+                    ? recoveryExecutionElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture)
+                    : string.Empty,
+                FormatNullableFloat(robustnessLog?.ExpectedModuleRobustness),
+                FormatNullableFloat(robustnessLog?.SelectedModuleRobustness),
+                robustnessLog?.MaxRobustnessModule ?? string.Empty,
+                FormatNullableFloat(robustnessLog?.MaxRobustness)
             };
 
             File.AppendAllText(path, string.Join(",", values.Select(EscapeCsv)) + Environment.NewLine);
         }
 
-        static void AppendRecoveryTimingLog(
-            string manipulationName,
-            string label,
-            RecoveryModule recoveryModule,
-            TimeSpan stateIdentificationElapsed,
-            TimeSpan scriptWriteElapsed,
-            TimeSpan compilationElapsed,
-            TimeSpan recoveryExecutionElapsed)
+        sealed class RecoveryRobustnessLog
         {
-            string path = Path.Combine(recoveryScriptRoot, "recovery_timing.csv");
-            bool hasAdditionalRecoveryModule = recoveryModule != RecoveryModule.BenignResume;
-            string[] values =
-            {
-                manipulationName,
-                label,
-                recoveryModule.ToString(),
-                stateIdentificationElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
-                scriptWriteElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
-                compilationElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture),
-                hasAdditionalRecoveryModule
-                    ? recoveryExecutionElapsed.TotalMilliseconds.ToString("F3", CultureInfo.InvariantCulture)
-                    : string.Empty
-            };
+            public float? ExpectedModuleRobustness { get; set; }
+            public float? SelectedModuleRobustness { get; set; }
+            public string MaxRobustnessModule { get; set; }
+            public float? MaxRobustness { get; set; }
+        }
 
-            File.AppendAllText(path, string.Join(",", values.Select(EscapeCsv)) + Environment.NewLine);
+        static RecoveryRobustnessLog BuildMismatchRobustnessLog(
+            string label,
+            RecoveryModule selectedModule,
+            PickPlaceXYZRecoveryModuleClassification classification)
+        {
+            return new RecoveryRobustnessLog
+            {
+                ExpectedModuleRobustness = GetRobustness(classification, ClassNameForLabel(label)),
+                SelectedModuleRobustness = GetRobustness(classification, ClassNameForRecoveryModule(selectedModule)),
+                MaxRobustnessModule = classification?.BestClassName ?? string.Empty,
+                MaxRobustness = classification?.BestRobustness
+            };
+        }
+
+        static RecoveryRobustnessLog BuildFailedClassificationRobustnessLog(
+            string label,
+            PickPlaceXYZRecoveryModuleClassification classification)
+        {
+            return new RecoveryRobustnessLog
+            {
+                ExpectedModuleRobustness = GetRobustness(classification, ClassNameForLabel(label)),
+                MaxRobustnessModule = classification?.BestClassName ?? string.Empty,
+                MaxRobustness = classification?.BestRobustness
+            };
+        }
+
+        static float? GetRobustness(PickPlaceXYZRecoveryModuleClassification classification, string className)
+        {
+            if (classification?.RobustnessByClass == null || string.IsNullOrWhiteSpace(className))
+                return null;
+
+            if (classification.RobustnessByClass.TryGetValue(className, out float robustness))
+                return robustness;
+
+            return null;
+        }
+
+        static string FormatNullableFloat(float? value)
+        {
+            return value.HasValue
+                ? value.Value.ToString("G", CultureInfo.InvariantCulture)
+                : string.Empty;
+        }
+
+        static bool IsUnexpectedRecoveryModuleDecision(string label, RecoveryModule recoveryModule)
+        {
+            RecoveryModule? expectedModule = ExpectedRecoveryModuleForLabel(label);
+            return expectedModule.HasValue && recoveryModule != expectedModule.Value;
+        }
+
+        static RecoveryModule? ExpectedRecoveryModuleForLabel(string label)
+        {
+            switch (label)
+            {
+                case "complete":
+                    return RecoveryModule.BenignResume;
+                case "overflow":
+                    return RecoveryModule.Overflow;
+                case "underflow":
+                    return RecoveryModule.Underflow;
+                case "misalignment_beltconveyor":
+                    return RecoveryModule.MisalignmentBeltConveyor;
+                case "misalignment_first_box":
+                    return RecoveryModule.MisalignmentFirstBox;
+                case "misalignment_second_box":
+                    return RecoveryModule.MisalignmentSecondBox;
+                case "misalignment_third_box":
+                    return RecoveryModule.MisalignmentThirdBox;
+                default:
+                    return null;
+            }
+        }
+
+        static string ClassNameForLabel(string label)
+        {
+            switch (label)
+            {
+                case "overflow":
+                case "underflow":
+                case "misalignment_beltconveyor":
+                case "misalignment_first_box":
+                case "misalignment_second_box":
+                case "misalignment_third_box":
+                    return label;
+                default:
+                    return null;
+            }
+        }
+
+        static string ClassNameForRecoveryModule(RecoveryModule recoveryModule)
+        {
+            switch (recoveryModule)
+            {
+                case RecoveryModule.Overflow:
+                    return "overflow";
+                case RecoveryModule.Underflow:
+                    return "underflow";
+                case RecoveryModule.MisalignmentBeltConveyor:
+                    return "misalignment_beltconveyor";
+                case RecoveryModule.MisalignmentFirstBox:
+                    return "misalignment_first_box";
+                case RecoveryModule.MisalignmentSecondBox:
+                    return "misalignment_second_box";
+                case RecoveryModule.MisalignmentThirdBox:
+                    return "misalignment_third_box";
+                default:
+                    return null;
+            }
         }
 
         static string EscapeCsv(string value)
@@ -565,8 +1003,7 @@ namespace Controllers
         PickPlaceXYZOverflowRecoveryModuleController overflowController;
         PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController misalignmentBeltConveyorController;
         PickPlaceXYZUnderflowRecoveryModuleController underflowController;
-        PickPlaceXYZMisalignmentPalletRecoveryModuleController misalignmentPalletController;
-        PickPlaceXYZPlaceholderRecoveryModuleController placeholderController;
+        PickPlaceXYZMisalignmentBoxRecoveryModuleController misalignmentBoxController;
         Controller activeController;
         long additionalRecoveryModuleExecutionMilliseconds;
 
@@ -596,16 +1033,11 @@ namespace Controllers
                     new PickPlaceXYZUnderflowRecoveryModuleController(decision);
                 activeController = underflowController;
             }
-            else if (decision.RecoveryModule == RecoveryModule.MisalignmentPallet)
+            else if (IsMisalignmentBoxModule(decision.RecoveryModule))
             {
-                misalignmentPalletController =
-                    new PickPlaceXYZMisalignmentPalletRecoveryModuleController(decision);
-                activeController = misalignmentPalletController;
-            }
-            else if (decision.RecoveryModule == RecoveryModule.Placeholder)
-            {
-                placeholderController = new PickPlaceXYZPlaceholderRecoveryModuleController(decision);
-                activeController = placeholderController;
+                misalignmentBoxController =
+                    new PickPlaceXYZMisalignmentBoxRecoveryModuleController(decision);
+                activeController = misalignmentBoxController;
             }
             else
             {
@@ -622,11 +1054,6 @@ namespace Controllers
                 && !overflowController.ModuleComplete;
             additionalRecoveryModuleActive =
                 additionalRecoveryModuleActive
-                || (activeController == placeholderController
-                    && placeholderController != null
-                    && !placeholderController.ModuleComplete);
-            additionalRecoveryModuleActive =
-                additionalRecoveryModuleActive
                 || (activeController == misalignmentBeltConveyorController
                     && misalignmentBeltConveyorController != null
                     && !misalignmentBeltConveyorController.ModuleComplete);
@@ -637,9 +1064,9 @@ namespace Controllers
                     && !underflowController.ModuleComplete);
             additionalRecoveryModuleActive =
                 additionalRecoveryModuleActive
-                || (activeController == misalignmentPalletController
-                    && misalignmentPalletController != null
-                    && !misalignmentPalletController.ModuleComplete);
+                || (activeController == misalignmentBoxController
+                    && misalignmentBoxController != null
+                    && !misalignmentBoxController.ModuleComplete);
 
             activeController.executionCount = executionCount;
             activeController.Execute(elapsedMilliseconds);
@@ -679,28 +1106,25 @@ namespace Controllers
                 return;
             }
 
-            if (activeController == misalignmentPalletController
-                && misalignmentPalletController.ModuleComplete)
+            if (activeController == misalignmentBoxController
+                && misalignmentBoxController.ModuleComplete)
             {
                 benignController = new PickPlaceXYZBenignRecoveryController(
-                    misalignmentPalletController.CreateContinuationDecision());
+                    misalignmentBoxController.CreateContinuationDecision());
                 activeController = benignController;
                 AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Misalignment pallet recovery module complete; control transferred to benign PickPlaceXYZ controller.");
-                return;
-            }
-
-            if (activeController == placeholderController && placeholderController.ModuleComplete)
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(
-                    placeholderController.CreateContinuationDecision());
-                activeController = benignController;
-                AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Placeholder recovery module complete; control transferred to benign PickPlaceXYZ controller.");
+                Debug.WriteLine("Misalignment box recovery module complete; control transferred to benign PickPlaceXYZ controller.");
                 return;
             }
 
             stopSignal = activeController.stopSignal;
+        }
+
+        static bool IsMisalignmentBoxModule(RecoveryModule recoveryModule)
+        {
+            return recoveryModule == RecoveryModule.MisalignmentFirstBox
+                || recoveryModule == RecoveryModule.MisalignmentSecondBox
+                || recoveryModule == RecoveryModule.MisalignmentThirdBox;
         }
     }
 
@@ -1348,7 +1772,7 @@ namespace Controllers
         }
     }
 
-    public sealed class PickPlaceXYZMisalignmentPalletRecoveryModuleController : Controller
+    public sealed class PickPlaceXYZMisalignmentBoxRecoveryModuleController : Controller
     {
         enum GrabReleaseStep
         {
@@ -1390,7 +1814,7 @@ namespace Controllers
 
         public bool ModuleComplete { get; private set; }
 
-        public PickPlaceXYZMisalignmentPalletRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
+        public PickPlaceXYZMisalignmentBoxRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
         {
             operations = decision.GrabReleaseOperations ?? new PickPlaceXYZGrabReleaseOperation[0];
             counter = decision.Counter;
@@ -1411,11 +1835,11 @@ namespace Controllers
             c.Value = false;
 
             // Temporarily bypass the initial roller conveyor recovery phase.
-            if (!rollerConveyorRecoveryComplete)
-            {
-                ExecuteRollerConveyorRecovery();
-                return;
-            }
+            // if (!rollerConveyorRecoveryComplete)
+            // {
+            //     ExecuteRollerConveyorRecovery();
+            //     return;
+            // }
 
             if (operationIndex >= operations.Length)
             {
@@ -1575,42 +1999,9 @@ namespace Controllers
                 StopExitBox = stopExitBox,
                 StateIdentificationSatisfied = true,
                 RecoveryModule = RecoveryModule.BenignResume,
-                Reason = "Continuation from completed misalignment_pallet recovery module."
+                Reason = "Continuation from completed misalignment box recovery module."
             };
         }
     }
 
-    public sealed class PickPlaceXYZPlaceholderRecoveryModuleController : Controller
-    {
-        PickPlaceXYZRecoveryDecision continuationDecision;
-
-        public bool ModuleComplete { get; private set; }
-
-        public PickPlaceXYZPlaceholderRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
-        {
-            continuationDecision = new PickPlaceXYZRecoveryDecision
-            {
-                PickingState = decision.PickingState,
-                GrabState = decision.GrabState,
-                Counter = decision.Counter,
-                ExitBox = decision.ExitBox,
-                StateIdentificationSatisfied = true,
-                RecoveryModule = RecoveryModule.BenignResume,
-                OverrideSpZ = decision.OverrideSpZ,
-                RecoverySpZ = decision.RecoverySpZ,
-                SafeGrabCompletionThreshold = decision.SafeGrabCompletionThreshold,
-                Reason = "Continuation from placeholder recovery module."
-            };
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            ModuleComplete = true;
-        }
-
-        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
-        {
-            return continuationDecision;
-        }
-    }
 }

@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "task_type": "effect_detection",
+  "structure_type": "Effect",
+  "mode": "attack",
+  "window_label_mode": "any_attack",
+  "pca": {
+    "enabled": false
+  },
+  "temporal_diff": {
+    "enabled": false
+  },
+  "stl": {
+    "signal_list": [
+      "posX",
+      "posY",
+      "posZ",
+      "box0_x",
+      "box0_y",
+      "box0_z",
+      "box1_x",
+      "box1_y",
+      "box1_z",
+      "box2_x",
+      "box2_y",
+      "box2_z",
+      "c"
+    ],
+    "window_size": 401,
+    "formula": {
+      "node_type": "timed",
+      "op": "eventually",
+      "interval": {
+        "kind": "bounds",
+        "normalized": true,
+        "value": [
+          0.6301710605621338,
+          1.0
+        ],
+        "value_indices": [
+          252,
+          400
+        ]
+      },
+      "sub": {
+        "node_type": "bool",
+        "op": "or",
+        "left": {
+          "node_type": "bool",
+          "op": "or",
+          "left": {
+            "node_type": "bool",
+            "op": "or",
+            "left": {
+              "node_type": "bool",
+              "op": "or",
+              "left": {
+                "node_type": "bool",
+                "op": "and",
+                "left": {
+                  "node_type": "atom",
+                  "dim": 6,
+                  "cmp": ">=",
+                  "threshold": 2.9792871475219727,
+                  "signal_name": "box1_x"
+                },
+                "right": {
+                  "node_type": "atom",
+                  "dim": 6,
+                  "cmp": "<",
+                  "threshold": 2.5346834659576416,
+                  "signal_name": "box1_x"
+                }
+              },
+              "right": {
+                "node_type": "bool",
+                "op": "and",
+                "left": {
+                  "node_type": "atom",
+                  "dim": 6,
+                  "cmp": ">=",
+                  "threshold": 3.3899800777435303,
+                  "signal_name": "box1_x"
+                },
+                "right": {
+                  "node_type": "atom",
+                  "dim": 6,
+                  "cmp": "<",
+                  "threshold": 5.354245185852051,
+                  "signal_name": "box1_x"
+                }
+              }
+            },
+            "right": {
+              "node_type": "bool",
+              "op": "and",
+              "left": {
+                "node_type": "atom",
+                "dim": 7,
+                "cmp": ">=",
+                "threshold": 3.860851764678955,
+                "signal_name": "box1_y"
+              },
+              "right": {
+                "node_type": "atom",
+                "dim": 7,
+                "cmp": "<",
+                "threshold": 0.6777574419975281,
+                "signal_name": "box1_y"
+              }
+            }
+          },
+          "right": {
+            "node_type": "bool",
+            "op": "and",
+            "left": {
+              "node_type": "atom",
+              "dim": 7,
+              "cmp": ">=",
+              "threshold": 6.7011942863464355,
+              "signal_name": "box1_y"
+            },
+            "right": {
+              "node_type": "atom",
+              "dim": 7,
+              "cmp": "<",
+              "threshold": 9.117653846740723,
+              "signal_name": "box1_y"
+            }
+          }
+        },
+        "right": {
+          "node_type": "atom",
+          "dim": 8,
+          "cmp": ">=",
+          "threshold": 10.170601844787598,
+          "signal_name": "box1_z"
+        }
+      }
+    },
+    "formula_str": "(F[252,400] ((((((box1_x >= 2.97929) \u2227 (box1_x < 2.53468)) \u2228 ((box1_x >= 3.38998) \u2227 (box1_x < 5.35425))) \u2228 ((box1_y >= 3.86085) \u2227 (box1_y < 0.677757))) \u2228 ((box1_y >= 6.70119) \u2227 (box1_y < 9.11765))) \u2228 (box1_z >= 10.1706)))"
+  },
+  "offline_stats": {
+    "fit": {
+      "acc": 0.9813084006309509,
+      "TPR": 0.8571429252624512,
+      "TNR": 1.0,
+      "n_pos": 14,
+      "n_neg": 93
+    },
+    "fit_train": {
+      "acc": 0.9813084006309509,
+      "TPR": 0.8571429252624512,
+      "TNR": 1.0,
+      "n_pos": 14,
+      "n_neg": 93
+    },
+    "fit_test": {
+      "acc": 0.95652174949646,
+      "TPR": 0.6666666865348816,
+      "TNR": 1.0,
+      "n_pos": 6,
+      "n_neg": 40
+    },
+    "baseline_manual_spec_on_padded_data": {
+      "acc": 0.4672897160053253,
+      "TPR": 1.0,
+      "TNR": 0.3870967626571655,
+      "n_pos": 14,
+      "n_neg": 93
+    },
+    "baseline_manual_spec_on_padded_train_data": {
+      "acc": 0.4672897160053253,
+      "TPR": 1.0,
+      "TNR": 0.3870967626571655,
+      "n_pos": 14,
+      "n_neg": 93
+    },
+    "baseline_manual_spec_on_padded_test_data": {
+      "acc": 0.52173912525177,
+      "TPR": 1.0,
+      "TNR": 0.45000001788139343,
+      "n_pos": 6,
+      "n_neg": 40
+    }
+  },
+  "fit_metadata": {
+    "padding_mode": "last",
+    "positive_raw_label": 0,
+    "eval_epsilon": 0.001,
+    "test_fraction": 0.0,
+    "train_count": 107,
+    "test_count": 46,
+    "manual_parameters_used_as_init": false
+  }
+}

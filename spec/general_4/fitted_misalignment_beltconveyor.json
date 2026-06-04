@@ -1,0 +1,383 @@
+{
+  "version": 1,
+  "task_type": "effect_detection",
+  "structure_type": "Effect",
+  "mode": "attack",
+  "window_label_mode": "any_attack",
+  "pca": {
+    "enabled": false
+  },
+  "temporal_diff": {
+    "enabled": false
+  },
+  "stl": {
+    "signal_list": [
+      "posX",
+      "posY",
+      "posZ",
+      "box0_x",
+      "box0_y",
+      "box0_z",
+      "box1_x",
+      "box1_y",
+      "box1_z",
+      "box2_x",
+      "box2_y",
+      "box2_z",
+      "c"
+    ],
+    "window_size": 401,
+    "formula": {
+      "node_type": "timed",
+      "op": "eventually",
+      "interval": {
+        "kind": "bounds",
+        "normalized": true,
+        "value": [
+          0.840890109539032,
+          1.0
+        ],
+        "value_indices": [
+          336,
+          400
+        ]
+      },
+      "sub": {
+        "node_type": "bool",
+        "op": "and",
+        "left": {
+          "node_type": "bool",
+          "op": "and",
+          "left": {
+            "node_type": "bool",
+            "op": "and",
+            "left": {
+              "node_type": "bool",
+              "op": "and",
+              "left": {
+                "node_type": "bool",
+                "op": "and",
+                "left": {
+                  "node_type": "bool",
+                  "op": "and",
+                  "left": {
+                    "node_type": "bool",
+                    "op": "and",
+                    "left": {
+                      "node_type": "bool",
+                      "op": "and",
+                      "left": {
+                        "node_type": "bool",
+                        "op": "and",
+                        "left": {
+                          "node_type": "bool",
+                          "op": "and",
+                          "left": {
+                            "node_type": "bool",
+                            "op": "and",
+                            "left": {
+                              "node_type": "bool",
+                              "op": "and",
+                              "left": {
+                                "node_type": "bool",
+                                "op": "and",
+                                "left": {
+                                  "node_type": "bool",
+                                  "op": "and",
+                                  "left": {
+                                    "node_type": "bool",
+                                    "op": "and",
+                                    "left": {
+                                      "node_type": "bool",
+                                      "op": "and",
+                                      "left": {
+                                        "node_type": "bool",
+                                        "op": "and",
+                                        "left": {
+                                          "node_type": "bool",
+                                          "op": "and",
+                                          "left": {
+                                            "node_type": "bool",
+                                            "op": "and",
+                                            "left": {
+                                              "node_type": "bool",
+                                              "op": "and",
+                                              "left": {
+                                                "node_type": "bool",
+                                                "op": "and",
+                                                "left": {
+                                                  "node_type": "bool",
+                                                  "op": "and",
+                                                  "left": {
+                                                    "node_type": "bool",
+                                                    "op": "and",
+                                                    "left": {
+                                                      "node_type": "bool",
+                                                      "op": "and",
+                                                      "left": {
+                                                        "node_type": "bool",
+                                                        "op": "and",
+                                                        "left": {
+                                                          "node_type": "atom",
+                                                          "dim": 3,
+                                                          "cmp": ">=",
+                                                          "threshold": -1.465024709701538,
+                                                          "signal_name": "box0_x"
+                                                        },
+                                                        "right": {
+                                                          "node_type": "atom",
+                                                          "dim": 3,
+                                                          "cmp": "<",
+                                                          "threshold": 8.765519142150879,
+                                                          "signal_name": "box0_x"
+                                                        }
+                                                      },
+                                                      "right": {
+                                                        "node_type": "atom",
+                                                        "dim": 4,
+                                                        "cmp": ">=",
+                                                        "threshold": -1.3849960565567017,
+                                                        "signal_name": "box0_y"
+                                                      }
+                                                    },
+                                                    "right": {
+                                                      "node_type": "atom",
+                                                      "dim": 4,
+                                                      "cmp": "<",
+                                                      "threshold": 6.116786479949951,
+                                                      "signal_name": "box0_y"
+                                                    }
+                                                  },
+                                                  "right": {
+                                                    "node_type": "atom",
+                                                    "dim": 5,
+                                                    "cmp": ">=",
+                                                    "threshold": -1.5258026123046875,
+                                                    "signal_name": "box0_z"
+                                                  }
+                                                },
+                                                "right": {
+                                                  "node_type": "atom",
+                                                  "dim": 5,
+                                                  "cmp": "<",
+                                                  "threshold": 9.347704887390137,
+                                                  "signal_name": "box0_z"
+                                                }
+                                              },
+                                              "right": {
+                                                "node_type": "atom",
+                                                "dim": 6,
+                                                "cmp": ">=",
+                                                "threshold": -1.4650471210479736,
+                                                "signal_name": "box1_x"
+                                              }
+                                            },
+                                            "right": {
+                                              "node_type": "atom",
+                                              "dim": 6,
+                                              "cmp": "<",
+                                              "threshold": 0.14880135655403137,
+                                              "signal_name": "box1_x"
+                                            }
+                                          },
+                                          "right": {
+                                            "node_type": "atom",
+                                            "dim": 7,
+                                            "cmp": ">=",
+                                            "threshold": -1.4615944623947144,
+                                            "signal_name": "box1_y"
+                                          }
+                                        },
+                                        "right": {
+                                          "node_type": "atom",
+                                          "dim": 7,
+                                          "cmp": "<",
+                                          "threshold": 4.236583709716797,
+                                          "signal_name": "box1_y"
+                                        }
+                                      },
+                                      "right": {
+                                        "node_type": "atom",
+                                        "dim": 8,
+                                        "cmp": ">=",
+                                        "threshold": -1.5499999523162842,
+                                        "signal_name": "box1_z"
+                                      }
+                                    },
+                                    "right": {
+                                      "node_type": "atom",
+                                      "dim": 8,
+                                      "cmp": "<",
+                                      "threshold": 5.2295427322387695,
+                                      "signal_name": "box1_z"
+                                    }
+                                  },
+                                  "right": {
+                                    "node_type": "atom",
+                                    "dim": 9,
+                                    "cmp": ">=",
+                                    "threshold": -1.4999951124191284,
+                                    "signal_name": "box2_x"
+                                  }
+                                },
+                                "right": {
+                                  "node_type": "atom",
+                                  "dim": 9,
+                                  "cmp": "<",
+                                  "threshold": 3.2014973163604736,
+                                  "signal_name": "box2_x"
+                                }
+                              },
+                              "right": {
+                                "node_type": "atom",
+                                "dim": 10,
+                                "cmp": ">=",
+                                "threshold": -1.364495873451233,
+                                "signal_name": "box2_y"
+                              }
+                            },
+                            "right": {
+                              "node_type": "atom",
+                              "dim": 10,
+                              "cmp": "<",
+                              "threshold": 5.198392868041992,
+                              "signal_name": "box2_y"
+                            }
+                          },
+                          "right": {
+                            "node_type": "atom",
+                            "dim": 11,
+                            "cmp": ">=",
+                            "threshold": -1.3274462223052979,
+                            "signal_name": "box2_z"
+                          }
+                        },
+                        "right": {
+                          "node_type": "atom",
+                          "dim": 11,
+                          "cmp": "<",
+                          "threshold": 1.3439265489578247,
+                          "signal_name": "box2_z"
+                        }
+                      },
+                      "right": {
+                        "node_type": "atom",
+                        "dim": 0,
+                        "cmp": ">=",
+                        "threshold": 2.9848785400390625,
+                        "signal_name": "posX"
+                      }
+                    },
+                    "right": {
+                      "node_type": "atom",
+                      "dim": 0,
+                      "cmp": "<",
+                      "threshold": 10.499924659729004,
+                      "signal_name": "posX"
+                    }
+                  },
+                  "right": {
+                    "node_type": "atom",
+                    "dim": 1,
+                    "cmp": ">=",
+                    "threshold": 4.887009143829346,
+                    "signal_name": "posY"
+                  }
+                },
+                "right": {
+                  "node_type": "atom",
+                  "dim": 1,
+                  "cmp": "<",
+                  "threshold": 7.849981307983398,
+                  "signal_name": "posY"
+                }
+              },
+              "right": {
+                "node_type": "atom",
+                "dim": 2,
+                "cmp": ">=",
+                "threshold": 4.290252685546875,
+                "signal_name": "posZ"
+              }
+            },
+            "right": {
+              "node_type": "atom",
+              "dim": 2,
+              "cmp": "<",
+              "threshold": 7.1579132080078125,
+              "signal_name": "posZ"
+            }
+          },
+          "right": {
+            "node_type": "atom",
+            "dim": 12,
+            "cmp": ">=",
+            "threshold": -0.05000000074505806,
+            "signal_name": "c"
+          }
+        },
+        "right": {
+          "node_type": "atom",
+          "dim": 12,
+          "cmp": "<",
+          "threshold": 0.6872717142105103,
+          "signal_name": "c"
+        }
+      }
+    },
+    "formula_str": "(F[336,400] ((((((((((((((((((((((((((box0_x >= -1.46502) \u2227 (box0_x < 8.76552)) \u2227 (box0_y >= -1.385)) \u2227 (box0_y < 6.11679)) \u2227 (box0_z >= -1.5258)) \u2227 (box0_z < 9.3477)) \u2227 (box1_x >= -1.46505)) \u2227 (box1_x < 0.148801)) \u2227 (box1_y >= -1.46159)) \u2227 (box1_y < 4.23658)) \u2227 (box1_z >= -1.55)) \u2227 (box1_z < 5.22954)) \u2227 (box2_x >= -1.5)) \u2227 (box2_x < 3.2015)) \u2227 (box2_y >= -1.3645)) \u2227 (box2_y < 5.19839)) \u2227 (box2_z >= -1.32745)) \u2227 (box2_z < 1.34393)) \u2227 (posX >= 2.98488)) \u2227 (posX < 10.4999)) \u2227 (posY >= 4.88701)) \u2227 (posY < 7.84998)) \u2227 (posZ >= 4.29025)) \u2227 (posZ < 7.15791)) \u2227 (c >= -0.05)) \u2227 (c < 0.687272)))"
+  },
+  "offline_stats": {
+    "fit": {
+      "acc": 0.9999999403953552,
+      "TPR": 1.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 13,
+      "n_neg": 94
+    },
+    "fit_train": {
+      "acc": 0.9999999403953552,
+      "TPR": 1.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 13,
+      "n_neg": 94
+    },
+    "fit_test": {
+      "acc": 1.0,
+      "TPR": 1.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 5,
+      "n_neg": 41
+    },
+    "baseline_manual_spec_on_padded_data": {
+      "acc": 0.8785046339035034,
+      "TPR": 0.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 13,
+      "n_neg": 94
+    },
+    "baseline_manual_spec_on_padded_train_data": {
+      "acc": 0.8785046339035034,
+      "TPR": 0.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 13,
+      "n_neg": 94
+    },
+    "baseline_manual_spec_on_padded_test_data": {
+      "acc": 0.8913043737411499,
+      "TPR": 0.0,
+      "TNR": 0.9999999403953552,
+      "n_pos": 5,
+      "n_neg": 41
+    }
+  },
+  "fit_metadata": {
+    "padding_mode": "last",
+    "positive_raw_label": 0,
+    "eval_epsilon": 0.001,
+    "test_fraction": 0.0,
+    "train_count": 107,
+    "test_count": 46,
+    "manual_parameters_used_as_init": false
+  }
+}

@@ -1,0 +1,236 @@
+STL template and fitted specs for general_4
+===========================================
+
+Source template specs:
+  backup_clusters_and_fit/specs_fit/general_4/spec_*.json
+
+Source fitted specs:
+  spec/general_4/fitted_*.json
+
+Signals:
+  posX, posY, posZ,
+  box0_x, box0_y, box0_z,
+  box1_x, box1_y, box1_z,
+  box2_x, box2_y, box2_z,
+  c
+
+Notation:
+  F[a,b](phi) means eventually phi is satisfied in the interval [a,b].
+  F[10](phi) is the template window before fitting.
+
+
+complete
+--------
+Template:
+F[10](
+  box0_x >= 0.0 AND box0_x < 0.0 AND
+  box0_y >= 0.0 AND box0_y < 0.0 AND
+  box0_z >= 0.0 AND box0_z < 0.0 AND
+  box1_x >= 0.0 AND box1_x < 0.0 AND
+  box1_y >= 0.0 AND box1_y < 0.0 AND
+  box1_z >= 0.0 AND box1_z < 0.0 AND
+  box2_x >= 0.0 AND box2_x < 0.0 AND
+  box2_y >= 0.0 AND box2_y < 0.0 AND
+  box2_z >= 0.0 AND box2_z < 0.0 AND
+  posX >= 0.0 AND posX < 0.0 AND
+  posY >= 0.0 AND posY < 0.0 AND
+  posZ >= 0.0 AND posZ < 0.0 AND
+  c >= 0.0 AND c < 0.0
+)
+
+Fitted:
+F[185,400](
+  box0_x >= 1.73196 AND box0_x < 4.10307 AND
+  box0_y >= 1.25401 AND box0_y < 3.9608 AND
+  box0_z >= 1.97765 AND box0_z < 10.4247 AND
+  box1_x >= 2.63442 AND box1_x < 3.50021 AND
+  box1_y >= 1.68336 AND box1_y < 6.86718 AND
+  box1_z >= 5.2331 AND box1_z < 10.55 AND
+  box2_x >= 2.95965 AND box2_x < 4.40403 AND
+  box2_y >= 1.76173 AND box2_y < 5.6903 AND
+  box2_z >= 3.89853 AND box2_z < 4.71441 AND
+  posX >= 2.7229 AND posX < 6.87048 AND
+  posY >= 4.69005 AND posY < 5.90597 AND
+  posZ >= 4.04753 AND posZ < 6.09084 AND
+  c >= 0.459367 AND c < 1.05
+)
+
+
+overflow
+--------
+Template:
+F[10](
+  box0_x >= 0.0 AND box0_x < 0.0 AND
+  box0_y >= 0.0 AND box0_y < 0.0 AND
+  box0_z >= 0.0 AND box0_z < 0.0 AND
+  box1_x >= 0.0 AND box1_x < 0.0 AND
+  box1_y >= 0.0 AND box1_y < 0.0 AND
+  box1_z >= 0.0 AND box1_z < 0.0 AND
+  box2_x >= 0.0 AND box2_x < 0.0 AND
+  box2_y >= 0.0 AND box2_y < 0.0 AND
+  box2_z >= 0.0 AND box2_z < 0.0 AND
+  posX >= 0.0 AND posX < 0.0 AND
+  posY >= 0.0 AND posY < 0.0 AND
+  posZ >= 0.0 AND posZ < 0.0 AND
+  c >= 0.0 AND c < 0.0
+)
+
+Fitted:
+F[399,400](
+  box0_x >= 3.08232 AND box0_x < 4.38868 AND
+  box0_y >= 3.16104 AND box0_y < 6.76617 AND
+  box0_z >= 5.39837 AND box0_z < 10.55 AND
+  box1_x >= -1.46505 AND box1_x < 3.85502 AND
+  box1_y >= -1.499 AND box1_y < 8.35702 AND
+  box1_z >= -1.55 AND box1_z < 10.5177 AND
+  box2_x >= -1.15042 AND box2_x < 9.4999 AND
+  box2_y >= -1.11122 AND box2_y < 6.09302 AND
+  box2_z >= -1.22531 AND box2_z < 3.75481 AND
+  posX >= 6.84355 AND posX < 9.75663 AND
+  posY >= 4.94653 AND posY < 5.66604 AND
+  posZ >= 2.68139 AND posZ < 5.33095 AND
+  c >= -0.0131515 AND c < 1.05
+)
+
+
+underflow
+---------
+Template:
+F[10](
+  box0_x >= 0.0 AND box0_x < 0.0 AND
+  box0_y >= 0.0 AND box0_y < 0.0 AND
+  box0_z >= 0.0 AND box0_z < 0.0 AND
+  box1_x >= 0.0 AND box1_x < 0.0 AND
+  box1_y >= 0.0 AND box1_y < 0.0 AND
+  box1_z >= 0.0 AND box1_z < 0.0 AND
+  box2_x >= 0.0 AND box2_x < 0.0 AND
+  box2_y >= 0.0 AND box2_y < 0.0 AND
+  box2_z >= 0.0 AND box2_z < 0.0 AND
+  posX >= 0.0 AND posX < 0.0 AND
+  posY >= 0.0 AND posY < 0.0 AND
+  posZ >= 0.0 AND posZ < 0.0 AND
+  c >= 0.0 AND c < 0.0
+)
+
+Fitted:
+F[307,400](
+  box0_x >= -1.46502 AND box0_x < 8.76552 AND
+  box0_y >= -1.16213 AND box0_y < 5.41844 AND
+  box0_z >= -1.55 AND box0_z < 10.55 AND
+  box1_x >= -1.46505 AND box1_x < 3.17664 AND
+  box1_y >= -1.499 AND box1_y < -0.748893 AND
+  box1_z >= -1.55 AND box1_z < 0.203732 AND
+  box2_x >= -1.5 AND box2_x < 8.81363 AND
+  box2_y >= -1.3645 AND box2_y < 4.15826 AND
+  box2_z >= -1.05871 AND box2_z < 2.41933 AND
+  posX >= -0.499996 AND posX < 4.78822 AND
+  posY >= -0.448996 AND posY < 5.47999 AND
+  posZ >= -0.5 AND posZ < 10.5 AND
+  c >= -0.05 AND c < 1.05
+)
+
+
+misalignment_beltconveyor
+-------------------------
+Template:
+F[10](
+  box0_x >= 0.0 AND box0_x < 0.0 AND
+  box0_y >= 0.0 AND box0_y < 0.0 AND
+  box0_z >= 0.0 AND box0_z < 0.0 AND
+  box1_x >= 0.0 AND box1_x < 0.0 AND
+  box1_y >= 0.0 AND box1_y < 0.0 AND
+  box1_z >= 0.0 AND box1_z < 0.0 AND
+  box2_x >= 0.0 AND box2_x < 0.0 AND
+  box2_y >= 0.0 AND box2_y < 0.0 AND
+  box2_z >= 0.0 AND box2_z < 0.0 AND
+  posX >= 0.0 AND posX < 0.0 AND
+  posY >= 0.0 AND posY < 0.0 AND
+  posZ >= 0.0 AND posZ < 0.0 AND
+  c >= 0.0 AND c < 0.0
+)
+
+Fitted:
+F[336,400](
+  box0_x >= -1.46502 AND box0_x < 8.76552 AND
+  box0_y >= -1.385 AND box0_y < 6.11679 AND
+  box0_z >= -1.5258 AND box0_z < 9.3477 AND
+  box1_x >= -1.46505 AND box1_x < 0.148801 AND
+  box1_y >= -1.46159 AND box1_y < 4.23658 AND
+  box1_z >= -1.55 AND box1_z < 5.22954 AND
+  box2_x >= -1.5 AND box2_x < 3.2015 AND
+  box2_y >= -1.3645 AND box2_y < 5.19839 AND
+  box2_z >= -1.32745 AND box2_z < 1.34393 AND
+  posX >= 2.98488 AND posX < 10.4999 AND
+  posY >= 4.88701 AND posY < 7.84998 AND
+  posZ >= 4.29025 AND posZ < 7.15791 AND
+  c >= -0.05 AND c < 0.687272
+)
+
+
+misalignment_first_box
+----------------------
+Template:
+F[10](
+  (box0_x >= 2.0 AND box0_x < 3.05) OR
+  (box0_x >= 3.15 AND box0_x < 5.1) OR
+  (box0_y >= 2.0 AND box0_y < 3.75) OR
+  (box0_y >= 3.85 AND box0_y < 4.5) OR
+  box0_z >= 9.9
+)
+
+Fitted:
+F[399,400](
+  (box0_x >= 3.16905 AND box0_x < 6.79369) OR
+  (box0_x >= 0.947785 AND box0_x < 2.83134) OR
+  (box0_y >= 1.94101 AND box0_y < 3.71386) OR
+  (box0_y >= 3.92511 AND box0_y < 5.13578) OR
+  box0_z >= 10.55
+)
+
+
+misalignment_second_box
+-----------------------
+Template:
+F[10](
+  (box1_x >= 2.0 AND box1_x < 3.05) OR
+  (box1_x >= 3.15 AND box1_x < 5.1) OR
+  (box1_y >= 6.0 AND box1_y < 6.65) OR
+  (box1_y >= 6.75 AND box1_y < 9.0) OR
+  box1_z >= 9.9
+)
+
+Fitted:
+F[252,400](
+  (box1_x >= 2.97929 AND box1_x < 2.53468) OR
+  (box1_x >= 3.38998 AND box1_x < 5.35425) OR
+  (box1_y >= 3.86085 AND box1_y < 0.677757) OR
+  (box1_y >= 6.70119 AND box1_y < 9.11765) OR
+  box1_z >= 10.1706
+)
+
+Notes:
+  The first and third fitted disjuncts are unsatisfiable because the lower
+  bound is greater than the upper bound.
+
+
+misalignment_third_box
+----------------------
+Template:
+F[10](
+  (box2_x >= 2.0 AND box2_x < 3.05) OR
+  (box2_x >= 3.15 AND box2_x < 4.1) OR
+  (box2_y >= 3.0 AND box2_y < 5.25) OR
+  (box2_y >= 5.35 AND box2_y < 7.0)
+)
+
+Fitted:
+F[390,400](
+  (box2_x >= 3.1244 AND box2_x < 3.97486) OR
+  (box2_x >= -1.0015 AND box2_x < 3.10419) OR
+  (box2_y >= 2.78441 AND box2_y < 5.12312) OR
+  (box2_y >= 5.184 AND box2_y < 0.384243)
+)
+
+Notes:
+  The last fitted disjunct is unsatisfiable because the lower bound is greater
+  than the upper bound.

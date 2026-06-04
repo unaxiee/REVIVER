@@ -1,0 +1,32 @@
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+
+name: eval_multiclass
+train_dataset_root: clusters_training
+test_dataset_root: clusters_testing
+
+classes:
+  - complete
+  - overflow
+  - underflow
+  - misalignment_first_box
+  - misalignment_second_box
+  - misalignment_third_box
+  - misalignment_beltconveyor
+
+class_specs:
+  complete: spec/general_4/fitted_complete.json
+  overflow: spec/general_4/fitted_overflow.json
+  underflow: spec/general_4/fitted_underflow.json
+  misalignment_first_box: spec/general_4/fitted_misalignment_first_box.json
+  misalignment_second_box: spec/general_4/fitted_misalignment_second_box.json
+  misalignment_third_box: spec/general_4/fitted_misalignment_third_box.json
+  misalignment_beltconveyor: spec/general_4/fitted_misalignment_beltconveyor.json
+
+downsample: 1
+pad_mode: last
+allow_unknown: true
+eval_epsilon: 0.001
+show_confusion: true

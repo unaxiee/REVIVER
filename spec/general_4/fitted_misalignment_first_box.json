@@ -1,0 +1,196 @@
+{
+  "version": 1,
+  "task_type": "effect_detection",
+  "structure_type": "Effect",
+  "mode": "attack",
+  "window_label_mode": "any_attack",
+  "pca": {
+    "enabled": false
+  },
+  "temporal_diff": {
+    "enabled": false
+  },
+  "stl": {
+    "signal_list": [
+      "posX",
+      "posY",
+      "posZ",
+      "box0_x",
+      "box0_y",
+      "box0_z",
+      "box1_x",
+      "box1_y",
+      "box1_z",
+      "box2_x",
+      "box2_y",
+      "box2_z",
+      "c"
+    ],
+    "window_size": 401,
+    "formula": {
+      "node_type": "timed",
+      "op": "eventually",
+      "interval": {
+        "kind": "bounds",
+        "normalized": true,
+        "value": [
+          0.9990000128746033,
+          1.0
+        ],
+        "value_indices": [
+          399,
+          400
+        ]
+      },
+      "sub": {
+        "node_type": "bool",
+        "op": "or",
+        "left": {
+          "node_type": "bool",
+          "op": "or",
+          "left": {
+            "node_type": "bool",
+            "op": "or",
+            "left": {
+              "node_type": "bool",
+              "op": "or",
+              "left": {
+                "node_type": "bool",
+                "op": "and",
+                "left": {
+                  "node_type": "atom",
+                  "dim": 3,
+                  "cmp": ">=",
+                  "threshold": 3.1690452098846436,
+                  "signal_name": "box0_x"
+                },
+                "right": {
+                  "node_type": "atom",
+                  "dim": 3,
+                  "cmp": "<",
+                  "threshold": 6.793691635131836,
+                  "signal_name": "box0_x"
+                }
+              },
+              "right": {
+                "node_type": "bool",
+                "op": "and",
+                "left": {
+                  "node_type": "atom",
+                  "dim": 3,
+                  "cmp": ">=",
+                  "threshold": 0.947784960269928,
+                  "signal_name": "box0_x"
+                },
+                "right": {
+                  "node_type": "atom",
+                  "dim": 3,
+                  "cmp": "<",
+                  "threshold": 2.831339120864868,
+                  "signal_name": "box0_x"
+                }
+              }
+            },
+            "right": {
+              "node_type": "bool",
+              "op": "and",
+              "left": {
+                "node_type": "atom",
+                "dim": 4,
+                "cmp": ">=",
+                "threshold": 1.9410066604614258,
+                "signal_name": "box0_y"
+              },
+              "right": {
+                "node_type": "atom",
+                "dim": 4,
+                "cmp": "<",
+                "threshold": 3.7138638496398926,
+                "signal_name": "box0_y"
+              }
+            }
+          },
+          "right": {
+            "node_type": "bool",
+            "op": "and",
+            "left": {
+              "node_type": "atom",
+              "dim": 4,
+              "cmp": ">=",
+              "threshold": 3.925110340118408,
+              "signal_name": "box0_y"
+            },
+            "right": {
+              "node_type": "atom",
+              "dim": 4,
+              "cmp": "<",
+              "threshold": 5.135775089263916,
+              "signal_name": "box0_y"
+            }
+          }
+        },
+        "right": {
+          "node_type": "atom",
+          "dim": 5,
+          "cmp": ">=",
+          "threshold": 10.550000190734863,
+          "signal_name": "box0_z"
+        }
+      }
+    },
+    "formula_str": "(F[399,400] ((((((box0_x >= 3.16905) \u2227 (box0_x < 6.79369)) \u2228 ((box0_x >= 0.947785) \u2227 (box0_x < 2.83134))) \u2228 ((box0_y >= 1.94101) \u2227 (box0_y < 3.71386))) \u2228 ((box0_y >= 3.92511) \u2227 (box0_y < 5.13578))) \u2228 (box0_z >= 10.55)))"
+  },
+  "offline_stats": {
+    "fit": {
+      "acc": 0.9999999403953552,
+      "TPR": 1.0,
+      "TNR": 1.0,
+      "n_pos": 11,
+      "n_neg": 96
+    },
+    "fit_train": {
+      "acc": 0.9999999403953552,
+      "TPR": 1.0,
+      "TNR": 1.0,
+      "n_pos": 11,
+      "n_neg": 96
+    },
+    "fit_test": {
+      "acc": 1.0,
+      "TPR": 1.0,
+      "TNR": 1.0,
+      "n_pos": 4,
+      "n_neg": 42
+    },
+    "baseline_manual_spec_on_padded_data": {
+      "acc": 0.32710278034210205,
+      "TPR": 1.0,
+      "TNR": 0.25,
+      "n_pos": 11,
+      "n_neg": 96
+    },
+    "baseline_manual_spec_on_padded_train_data": {
+      "acc": 0.32710278034210205,
+      "TPR": 1.0,
+      "TNR": 0.25,
+      "n_pos": 11,
+      "n_neg": 96
+    },
+    "baseline_manual_spec_on_padded_test_data": {
+      "acc": 0.30434784293174744,
+      "TPR": 1.0,
+      "TNR": 0.2380952388048172,
+      "n_pos": 4,
+      "n_neg": 42
+    }
+  },
+  "fit_metadata": {
+    "padding_mode": "last",
+    "positive_raw_label": 0,
+    "eval_epsilon": 0.001,
+    "test_fraction": 0.0,
+    "train_count": 107,
+    "test_count": 46,
+    "manual_parameters_used_as_init": false
+  }
+}
