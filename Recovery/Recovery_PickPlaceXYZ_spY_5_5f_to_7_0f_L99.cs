@@ -11,13 +11,11 @@ namespace Controllers
                 PickingState = State.State0,
                 GrabState = State.State0,
                 Counter = 0,
-                OverrideCounter = true,
-                RecoveryCounter = 0,
                 ExitBox = 0,
-                StopExitBox = 2,
+                StopExitBox = 1,
                 StateIdentificationSatisfied = false,
                 RecoveryModule = RecoveryModule.MisalignmentBeltConveyor,
-                Reason = @"Stage 1 state identification skipped for label 'misalignment_beltconveyor'; defer to recovery module identification. Stage 2 recovery module: misalignment_beltconveyor module selected. Misalignment belt conveyor counter override: counter = 0."
+                Reason = @"Stage 1 state identification skipped for label 'misalignment_beltconveyor'; defer to recovery module identification. Stage 2 recovery module: misalignment_beltconveyor module selected. Recovery log classifier selected 'misalignment_beltconveyor' from 'PickPlaceXYZ_spY_5_5f_to_7_0f_L99.csv' with rho=0.05. Misalignment belt conveyor counter override: counter = 0."
             })
         {
         }
@@ -27,7 +25,7 @@ namespace Controllers
         // partConveyorForward=False, boxConveyorForward=False, exitConveyor=False
         // grab=False, c=False
         // spX=8.3, spY=7, spZ=5.3
-        // posX=8.299902, posY=6.9999084, posZ=5.2921104
+        // posX=8.300045, posY=6.9999084, posZ=5.2924776
         // counter=0, exitBox=0
     }
 }

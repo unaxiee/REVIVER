@@ -1,9 +1,0 @@
-manipulation,label,recovery_module,state_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms
-PickPlaceXYZ_pickingState_State5_to_State0_L152,overflow,Overflow,3.354,12.433,1142.469,28109.000
-PickPlaceXYZ_pickingState_State5_to_State1_L152,overflow,Overflow,0.537,1.281,1151.668,28013.000
-PickPlaceXYZ_spZ_0_0f_to_10f_L157,overflow,Overflow,3.889,12.207,1177.171,28179.000
-PickPlaceXYZ_spZ_0_0f_to_6f_L157,overflow,Overflow,0.398,0.733,1135.765,28087.000
-PickPlaceXYZ_spZ_0_0f_to_7f_L157,overflow,Overflow,0.099,0.688,1161.452,28066.000
-PickPlaceXYZ_spZ_0_0f_to_8f_L157,overflow,Overflow,0.097,0.777,1145.206,28122.000
-PickPlaceXYZ_spZ_0_0f_to_9f_L157,overflow,Overflow,0.084,0.778,1156.356,28210.000
-PickPlaceXYZ_spX_3_1f_to_8_0f_L128,overflow,Overflow,9.187,20.592,1130.131,16913.000

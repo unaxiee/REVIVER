@@ -16,7 +16,7 @@ namespace Controllers
                 StateIdentificationSatisfied = false,
                 RecoveryModule = RecoveryModule.Overflow,
                 SafeGrabCompletionThreshold = 4,
-                Reason = @"Stage 1 state identification skipped for label 'overflow'; defer to recovery module identification. Stage 2 recovery module placeholder: overflow module selected. Overflow start state override: grab is false, start from State (0, 0) with safe grab threshold = 4."
+                Reason = @"Stage 1 state identification skipped for label 'overflow'; defer to recovery module identification. Stage 2 recovery module: overflow module selected. Recovery log classifier selected 'overflow' from 'PickPlaceXYZ_spZ_0_0f_to_9f_L157.csv' with rho=0.013151526. Overflow start state override: grab is false, start from State (0, 0) with safe grab threshold = 4."
             })
         {
         }
@@ -26,7 +26,7 @@ namespace Controllers
         // partConveyorForward=True, boxConveyorForward=False, exitConveyor=False
         // grab=False, c=False
         // spX=8.3, spY=5.5, spZ=5.3
-        // posX=8.298519, posY=5.4999084, posZ=5.3010178
+        // posX=8.298519, posY=5.4999084, posZ=5.3008223
         // counter=1, exitBox=0
     }
 }

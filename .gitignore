@@ -15,3 +15,5 @@ Recovery/.runtime_build
 Recovery/recovery_timing.csv
 Recovery/recovery_manifest.csv
 match.csv
+clusters_csv_inventory.csv
+Logs/__pycache__

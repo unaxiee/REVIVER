@@ -1,0 +1,6 @@
+manipulation,split,label,recovery_module,state_identification_ms,recovery_module_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms,expected_module_robustness,selected_module_robustness,max_robustness_module,max_robustness
+PickPlaceXYZ_spX_3_1f_to_2_08f_L121,testing,misalignment_second_box,MisalignmentThirdBox,0.418,44.993,0.000,0.000,0.000,-0.0012731552,0.004087925,misalignment_third_box,0.004087925
+PickPlaceXYZ_spX_3_1f_to_2_36f_L121,testing,misalignment_second_box,MisalignmentThirdBox,0.007,26.007,0.000,0.000,0.000,-0.0012731552,0.004087925,misalignment_third_box,0.004087925
+PickPlaceXYZ_spX_3_1f_to_3_12f_L128,testing,misalignment_third_box,classify failed,0.002,12.531,0.000,0.000,,-0.0042803288,,misalignment_second_box,-0.0012731552
+PickPlaceXYZ_spX_3_1f_to_2_71f_L121,training,misalignment_second_box,MisalignmentThirdBox,0.002,18.254,0.000,0.000,0.000,-0.0012731552,0.004069805,misalignment_third_box,0.004069805
+PickPlaceXYZ_spX_3_1f_to_3_14f_L121,training,misalignment_second_box,MisalignmentThirdBox,0.002,12.478,0.000,0.000,0.000,-0.0012731552,0.004087925,misalignment_third_box,0.004087925

@@ -15,7 +15,7 @@ namespace Controllers
                 StopExitBox = 1,
                 StateIdentificationSatisfied = false,
                 RecoveryModule = RecoveryModule.Underflow,
-                Reason = @"Stage 1 state identification skipped for label 'underflow'; defer to recovery module identification. Stage 2 recovery module: underflow module selected. Underflow counter override: counter = 0. Underflow exitBox override: exitBox = 0. Underflow continuation: resume from State (0, 0) after pallet reaches loading area."
+                Reason = @"Stage 1 state identification skipped for label 'underflow'; defer to recovery module identification. Stage 2 recovery module: underflow module selected. Recovery log classifier selected 'underflow' from 'PickPlaceXYZ_detected_neg_L175.csv' with rho=0.049999952. Underflow state override: grab is false, resume from State (0, 0). Underflow counter override: counter = 0. Underflow exitBox override: exitBox = 0."
             })
         {
         }

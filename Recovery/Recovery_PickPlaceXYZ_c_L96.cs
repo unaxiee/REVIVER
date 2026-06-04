@@ -14,12 +14,12 @@ namespace Controllers
                 ExitBox = 0,
                 StopExitBox = 1,
                 StateIdentificationSatisfied = false,
-                RecoveryModule = RecoveryModule.MisalignmentPallet,
+                RecoveryModule = RecoveryModule.MisalignmentThirdBox,
                 GrabReleaseOperations = new[]
                 {
-                    new PickPlaceXYZGrabReleaseOperation(3.1f, 5.3f, 5f, 3.1f, 5.3f, 5f, false, true),
+                    new PickPlaceXYZGrabReleaseOperation(3.100101f, 5.300079f, 4.974756f, 3.1f, 5.3f, 5f, false, true),
                 },
-                Reason = @"Stage 1 state identification skipped for label 'misalignment_pallet'; defer to recovery module identification. Stage 2 recovery module: misalignment_pallet module selected. Misalignment pallet recovery will run 1 configured grab-release operations before benign resume."
+                Reason = @"Stage 1 state identification skipped for label 'misalignment_third_box'; defer to recovery module identification. Stage 2 recovery module: misalignment_third_box module selected. Recovery log classifier selected 'misalignment_third_box' from 'PickPlaceXYZ_c_L96.csv' with rho=0.004087925. Misalignment box inputs loaded from last row of enhanced CSV 'PickPlaceXYZ_c_L96.csv'. Misalignment box recovery will run 1 configured grab-release operations before benign resume."
             })
         {
         }
@@ -29,7 +29,7 @@ namespace Controllers
         // partConveyorForward=False, boxConveyorForward=False, exitConveyor=False
         // grab=False, c=True
         // spX=3.1, spY=5.3, spZ=5
-        // posX=3.1001012, posY=5.3000793, posZ=4.999914
+        // posX=3.1001012, posY=5.3000793, posZ=5.000086
         // counter=3, exitBox=0
     }
 }
