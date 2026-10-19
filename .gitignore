@@ -18,3 +18,11 @@ Recovery/recovery_manifest.csv
 match.csv
 clusters_csv_inventory.csv
 Logs/__pycache__
+# Local files retained after their removal from the remote repository
+/Logs/enhance_csv_with_box_positions.py
+/Videos/crop_video.bat
+/Videos/frame_sequence_prompt
+/Videos/sample_video.py
+/Videos/single_frame_prompt
+/pace_job/
+/test_videos/
