@@ -1,12 +1,13 @@
 import re
-import os
+from pathlib import Path
 from collections import defaultdict
 
-scene = "PickPlaceXYZ"
-os.makedirs(scene, exist_ok=True)
+scene = "AssemblerAnalog"
+script_dir = Path(__file__).resolve().parent
+output_dir = script_dir / scene
 
 # Read source file
-with open(f"../Scenes/{scene}.cs", "r") as f:
+with open(script_dir.parent / "Scenes" / f"{scene}.cs", "r") as f:
     lines = f.readlines()
 
 # 1: Locate Execute() method boundaries
@@ -45,6 +46,8 @@ for var in state_enum_map:
 print(state_enum_map)
 
 # 4: Generate manipulation variants
+output_dir.mkdir(exist_ok=True)
+generated_count = 0
 for line_idx, indent, state_name, original_state in state_assign_lines:
     for replacement in sorted(state_enum_map[state_name]):
         if replacement == original_state:
@@ -60,5 +63,8 @@ for line_idx, indent, state_name, original_state in state_assign_lines:
             elif f"{scene}(" in line:
                 new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-        with open(f"{scene}/{new_class_name}.cs", "w") as f:
+        with open(output_dir / f"{new_class_name}.cs", "w") as f:
             f.writelines(new_lines)
+        generated_count += 1
+
+print(f"Generated {generated_count} state manipulation variants in {output_dir}")

@@ -1,12 +1,14 @@
 import re
-import os
+from pathlib import Path
 from collections import defaultdict
 
-scene = "PickPlaceXYZ"
-os.makedirs(scene, exist_ok=True)
+scene = "AssemblerAnalog"
+script_dir = Path(__file__).resolve().parent
+output_dir = script_dir / scene
+generated_count = 0
 
 # Read original file
-with open(f"../Scenes/{scene}.cs", "r") as f:
+with open(script_dir.parent / "Scenes" / f"{scene}.cs", "r") as f:
     lines = f.readlines()
 
 # 1: Capture float input variables
@@ -30,10 +32,11 @@ for i, line in enumerate(lines):
             usage_lines[var].append(i)
 print(usage_lines)
 
-# 3: Constants to try (integers in [0, 10] + outliers)
+# 3: Constants to try (0, 5, 10 plus outliers)
 test_constants = list(range(0, 11, 5)) + [-1, 11]
 
-# 4: For each constant, generate a new .cs file with all .Value uses replaced
+# 4: Replace a variable's .Value uses on one source line per variant
+output_dir.mkdir(exist_ok=True)
 def sanitize(x): return str(x).replace("-", "neg_").replace(".", "_")
 for var, line_nums in usage_lines.items():
     for line_idx in line_nums:
@@ -52,5 +55,8 @@ for var, line_nums in usage_lines.items():
                 elif f"{scene}(" in line:
                     new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-            with open(f"{scene}/{new_class_name}.cs", "w") as f:
+            with open(output_dir / f"{new_class_name}.cs", "w") as f:
                 f.writelines(new_lines)
+            generated_count += 1
+
+print(f"Generated {generated_count} float input manipulation variants in {output_dir}")

@@ -15,6 +15,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Reflection;
+using ScreenRecorderLib;
 
 namespace Controllers
 {
@@ -39,9 +40,28 @@ namespace Controllers
         public const int CsvLogIntervalExecutions = 10;
 
         // Naming schema
-        static string sceneName = "PickPlaceXYZ";
+        static string sceneName = "AssemblerAnalog";
+        public const int MaxExecutions = 2000;
+        static readonly bool EnableCsvLogging = true;
+        static readonly bool EnableRecording = false;
+        static readonly bool RunAllManipulations = true;
+        // True replaces the variant's MP4; false preserves it and adds _1, _2, etc.
+        static readonly bool OverwriteRecordings = true;
+
+        // (variable, nominal value, manipulation); null means any value.
+        // States: ("stateBases", State.State0, State.State31).
+        // Inputs have no nominal state: ("ftPartLeaving", null, "neg").
+        // Input manipulation accepts "neg", "true", "false" (or bool true/false).
+        // Output negations: ("basesConveyor1", null, null) or ("basesConveyor1", null, "neg").
+        // Float inputs: ("positionX", null, null) selects all; ("positionX", null, -1f) selects -1.
+        // Float outputs: ("setX", 1.1f, null) selects every replacement of 1.1f.
+        static readonly (string Variable, object Nominal, object Manipulated) SelectedManipulation =
+            ("setX", 0f, null);
+        // Optional source line restriction; null includes all matching lines.
+        static readonly int? SelectedSourceLine = 132;
         static string manipulationRoot = $@"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Manipulations";
         static string csvRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Logs\FaultInjection";
+        static string videoRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Videos\FaultInjection";
 
         /// <summary>
         /// The idea of this sample is to demonstrate that Microsoft Visual Studio can be used as a soft PLC to
@@ -51,10 +71,14 @@ namespace Controllers
         static void Main(string[] args)
         {
             string sceneManipulationFolder = Path.Combine(manipulationRoot, sceneName);
+            // Fixed per-variant paths allow StreamWriter (append: false) to overwrite prior logs.
             string csvFolder = Path.Combine(csvRoot, sceneName);
+            string videoFolder = Path.Combine(videoRoot, sceneName);
 
             string[] manipulationFiles = GetFaultInjectionManipulationFiles(sceneManipulationFolder);
             System.Diagnostics.Debug.WriteLine($"Found {manipulationFiles.Length} manipulation classes.");
+            if (manipulationFiles.Length == 0)
+                throw new InvalidOperationException($"No manipulations matched {SelectedManipulation} at source line {SelectedSourceLine?.ToString() ?? "any"}. Input and Boolean-output mutations require a null nominal value.");
 
             //Stopwatch used to measure elapsed time between cycles
             Stopwatch stopwatch = new Stopwatch();
@@ -65,99 +89,254 @@ namespace Controllers
             //MemoryBit used to detect if FACTORY I/O is edit or run mode
             MemoryBit running = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Input);
 
-            foreach (var manipulationFile in manipulationFiles)
+            try
             {
-                string name = Path.GetFileNameWithoutExtension(manipulationFile);
-                string relativeFolder = Path.GetDirectoryName(Path.GetRelativePath(sceneManipulationFolder, manipulationFile));
-                string currentCsvFolder = Path.Combine(csvFolder, relativeFolder);
-                Directory.CreateDirectory(currentCsvFolder);
-
-                string fullClassName = $"Controllers.{name}";
-                Type controllerType = Type.GetType(fullClassName);
-                string csvPath = Path.Combine(currentCsvFolder, $"{name}.csv");
-
-                if (controllerType == null)
+                foreach (var manipulationFile in manipulationFiles)
                 {
-                    Debug.WriteLine($"[SKIP] Could not find controller type {fullClassName}.");
-                    continue;
-                }
+                    string name = Path.GetFileNameWithoutExtension(manipulationFile);
+                    string relativeFolder = Path.GetDirectoryName(Path.GetRelativePath(sceneManipulationFolder, manipulationFile));
+                    string currentCsvFolder = Path.Combine(csvFolder, relativeFolder);
+                    if (EnableCsvLogging)
+                        Directory.CreateDirectory(currentCsvFolder);
 
-                //Forcing a rising edge on the start MemoryBit so FACTORY I/O can detect it
-                SwitchToRun(start);
+                    string fullClassName = $"Controllers.{name}";
+                    Type controllerType = Type.GetType(fullClassName);
+                    string csvPath = Path.Combine(currentCsvFolder, $"{name}.csv");
 
-                Controller controller = (Controller)Activator.CreateInstance(controllerType);
-                var loggedSignals = DiscoverLoggedSignals(manipulationFile, controller);
-                System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
-
-                stopwatch.Start();
-
-                Thread.Sleep(CycleTime);
-
-                int executionCount = 0;
-                Stopwatch runStopwatch = Stopwatch.StartNew();
-                StreamWriter csvWriter = null;
-
-                try
-                {
-                    csvWriter = new StreamWriter(csvPath, false);
-                    WriteCsvHeader(csvWriter, loggedSignals);
-
-                    while (!controller.stopSignal)
+                    if (controllerType == null)
                     {
-                        //Update the memory map before executing the controller
-                        MemoryMap.Instance.Update();
-
-                        if (running.Value)
-                        {
-                            stopwatch.Stop();
-
-                            controller.executionCount = executionCount;
-
-                            controller.Execute((int)stopwatch.ElapsedMilliseconds);
-
-                            if (executionCount % CsvLogIntervalExecutions == 0)
-                            {
-                                WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
-                            }
-
-                            if (controller.captureSignal)
-                            {
-                                controller.captureSignal = false;
-                            }
-
-                            executionCount++;
-
-                            stopwatch.Restart();
-                        }
-
-                        Thread.Sleep(CycleTime);
-
-                        if (executionCount == 4000)
-                            break;
+                        Debug.WriteLine($"[SKIP] Could not find controller type {fullClassName}.");
+                        continue;
                     }
 
-                    WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                    string videoPath = null;
+                    if (EnableRecording)
+                    {
+                        Directory.CreateDirectory(videoFolder);
+                        videoPath = GetRecordingPath(videoFolder, name);
+                        Debug.WriteLine($"Recording screen to {videoPath}");
+                    }
+
+                    Controller controller = (Controller)Activator.CreateInstance(controllerType);
+                    var loggedSignals = EnableCsvLogging ? DiscoverLoggedSignals(manipulationFile, controller) : null;
+                    System.Diagnostics.Debug.WriteLine(string.Format("Running controller: {0}", controller.GetType().Name));
+
+                    stopwatch.Restart();
+
+                    Thread.Sleep(CycleTime);
+
+                    int executionCount = 0;
+                    Stopwatch runStopwatch = Stopwatch.StartNew();
+                    StreamWriter csvWriter = null;
+                    using ScreenRecording recording = EnableRecording ? new ScreenRecording() : null;
+
+                    try
+                    {
+                        recording?.Start(videoPath);
+                        // Start recording before switching the scene to run mode.
+                        SwitchToRun(start);
+                        stopwatch.Restart();
+                        runStopwatch.Restart();
+                        if (EnableCsvLogging)
+                        {
+                            csvWriter = new StreamWriter(csvPath, false);
+                            WriteCsvHeader(csvWriter, loggedSignals);
+                        }
+
+                        while (!controller.stopSignal)
+                        {
+                            recording?.ThrowIfFailed();
+                            //Update the memory map before executing the controller
+                            MemoryMap.Instance.Update();
+
+                            if (running.Value)
+                            {
+                                stopwatch.Stop();
+
+                                controller.executionCount = executionCount;
+
+                                controller.Execute((int)stopwatch.ElapsedMilliseconds);
+
+                                if (EnableCsvLogging && executionCount % CsvLogIntervalExecutions == 0)
+                                {
+                                    WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                                }
+
+                                if (controller.captureSignal)
+                                {
+                                    controller.captureSignal = false;
+                                }
+
+                                executionCount++;
+
+                                stopwatch.Restart();
+                            }
+
+                            Thread.Sleep(CycleTime);
+
+                            if (executionCount >= MaxExecutions)
+                                break;
+                        }
+
+                        if (EnableCsvLogging)
+                            WriteCsvRow(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                    }
+                    finally
+                    {
+                        csvWriter?.Dispose();
+                        Shutdown(start);
+                    }
+
+                    System.Diagnostics.Debug.WriteLine($"Executed {executionCount} times");
+
+                }
+
+            }
+            finally
+            {
+                MemoryMap.Instance.Dispose();
+            }
+        }
+
+        static string GetRecordingPath(string folder, string name)
+        {
+            string path = Path.Combine(folder, name + ".mp4");
+            if (OverwriteRecordings)
+            {
+                if (File.Exists(path))
+                    File.Delete(path);
+                return path;
+            }
+
+            int suffix = 1;
+            while (File.Exists(path))
+                path = Path.Combine(folder, $"{name}_{suffix++}.mp4");
+            return path;
+        }
+
+        // Stop() finalizes MP4 asynchronously; wait before disposing or starting another run.
+        private sealed class ScreenRecording : IDisposable
+        {
+            readonly Recorder recorder;
+            readonly ManualResetEventSlim started = new ManualResetEventSlim();
+            readonly ManualResetEventSlim finished = new ManualResetEventSlim();
+            string error;
+            bool requested;
+
+            public ScreenRecording()
+            {
+                recorder = Recorder.CreateRecorder(new RecorderOptions
+                {
+                    AudioOptions = new AudioOptions { IsAudioEnabled = false }
+                });
+                recorder.OnStatusChanged += (sender, e) =>
+                {
+                    if (e.Status == RecorderStatus.Recording)
+                        started.Set();
+                };
+                recorder.OnRecordingComplete += (sender, e) => finished.Set();
+                recorder.OnRecordingFailed += (sender, e) =>
+                {
+                    error = e.Error;
+                    started.Set();
+                    finished.Set();
+                };
+            }
+
+            public void Start(string path)
+            {
+                requested = true;
+                recorder.Record(path);
+                if (!started.Wait(TimeSpan.FromSeconds(15)))
+                    throw new TimeoutException("Screen recording did not start within 15 seconds.");
+                ThrowIfFailed();
+            }
+
+            public void ThrowIfFailed()
+            {
+                string recordingError = Volatile.Read(ref error);
+                if (recordingError != null)
+                    throw new InvalidOperationException($"Screen recording failed: {recordingError}");
+            }
+
+            public void Dispose()
+            {
+                try
+                {
+                    if (requested && !finished.IsSet)
+                    {
+                        recorder.Stop();
+                        if (!finished.Wait(TimeSpan.FromSeconds(30)))
+                            throw new TimeoutException("Screen recording did not finish within 30 seconds.");
+                    }
+                    ThrowIfFailed();
                 }
                 finally
                 {
-                    csvWriter?.Dispose();
+                    recorder.Dispose();
+                    started.Dispose();
+                    finished.Dispose();
                 }
-
-                System.Diagnostics.Debug.WriteLine($"Executed {executionCount} times");
-
-                Shutdown(start);
             }
-
-            MemoryMap.Instance.Dispose();
         }
 
         static string[] GetFaultInjectionManipulationFiles(string sceneManipulationFolder)
         {
-            string palletFolder = Path.Combine(sceneManipulationFolder, "pallet");
-            if (!Directory.Exists(palletFolder))
-                return new string[0];
+            if (RunAllManipulations)
+            {
+                return Directory.GetFiles(sceneManipulationFolder, sceneName + "_*.cs", SearchOption.TopDirectoryOnly)
+                    .OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
+            }
+            if (string.IsNullOrWhiteSpace(SelectedManipulation.Variable))
+                throw new InvalidOperationException("Configure the variable in SelectedManipulation before running.");
+            if (!Directory.Exists(sceneManipulationFolder))
+                throw new DirectoryNotFoundException(sceneManipulationFolder);
 
-            return Directory.GetFiles(palletFolder, "*.cs", SearchOption.AllDirectories)
+            Regex filePattern = new Regex("^" + Regex.Escape(sceneName)
+                + @"_(?<variable>\w+)_(?:(?<nominal>State\d+)_to_(?<manipulated>State\d+)|(?<manipulated>neg|true|false))_L\d+$");
+            Regex outputPattern = new Regex("^" + Regex.Escape(sceneName)
+                + @"_(?<variable>\w+)_L\d+$");
+            Regex floatInputPattern = new Regex("^" + Regex.Escape(sceneName)
+                + @"_(?<variable>\w+)_to_(?<manipulated>(?:neg_)?\d+(?:_\d+)?f)_L\d+$");
+            Regex floatOutputPattern = new Regex("^" + Regex.Escape(sceneName)
+                + @"_(?<variable>\w+?)_(?<nominal>(?:neg_)?\d+(?:_\d+)?f)_to_(?<manipulated>(?:neg_)?\d+(?:_\d+)?f)_L\d+$");
+            string[] files = Directory.GetFiles(sceneManipulationFolder, "*.cs", SearchOption.TopDirectoryOnly);
+
+            bool MatchesValue(string token, object selected)
+            {
+                if (selected == null)
+                    return true;
+                if (selected is float || selected is double || selected is decimal
+                    || selected is int || selected is long)
+                {
+                    return token.EndsWith("f", StringComparison.Ordinal)
+                        && decimal.TryParse(token.Substring(0, token.Length - 1)
+                            .Replace("neg_", "-").Replace("_", "."),
+                            NumberStyles.Float, CultureInfo.InvariantCulture, out decimal value)
+                        && value == Convert.ToDecimal(selected, CultureInfo.InvariantCulture);
+                }
+                return token == (selected is bool bit ? (bit ? "true" : "false") : selected.ToString());
+            }
+
+            bool MatchesSelection(string path)
+            {
+                Match match = filePattern.Match(Path.GetFileNameWithoutExtension(path));
+                if (!match.Success)
+                    match = floatOutputPattern.Match(Path.GetFileNameWithoutExtension(path));
+                if (!match.Success)
+                    match = floatInputPattern.Match(Path.GetFileNameWithoutExtension(path));
+                bool isOutput = !match.Success;
+                if (isOutput)
+                    match = outputPattern.Match(Path.GetFileNameWithoutExtension(path));
+                string fileManipulation = isOutput ? "neg" : match.Groups["manipulated"].Value;
+                return match.Success && match.Groups["variable"].Value == SelectedManipulation.Variable
+                    && (!SelectedSourceLine.HasValue || Path.GetFileNameWithoutExtension(path)
+                        .EndsWith($"_L{SelectedSourceLine.Value}", StringComparison.Ordinal))
+                    && MatchesValue(match.Groups["nominal"].Value, SelectedManipulation.Nominal)
+                    && MatchesValue(fileManipulation, SelectedManipulation.Manipulated);
+            }
+
+            return files.Where(MatchesSelection)
                 .OrderBy(path => Path.GetRelativePath(sceneManipulationFolder, path), StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
@@ -186,7 +365,7 @@ namespace Controllers
 
             string source = File.ReadAllText(controllerSourcePath);
             Regex signalPattern = new Regex(
-                @"Memory(?<signalType>Bit|Float)\s+(?<fieldName>\w+)\s*=\s*MemoryMap\.Instance\.Get(?<getterType>Bit|Float)\(""(?<memoryName>[^""]+)"",\s*MemoryType\.(?<memoryType>Input|Output)\);");
+                @"Memory(?<signalType>Bit|Float|Int)\s+(?<fieldName>\w+)\s*=\s*MemoryMap\.Instance\.Get(?<getterType>Bit|Float|Int)\(""(?<memoryName>[^""]+)"",\s*MemoryType\.(?<memoryType>Input|Output)\);");
             HashSet<string> seenNames = new HashSet<string>(signals.Select(signal => signal.Name));
 
             foreach (Match match in signalPattern.Matches(source))
@@ -205,11 +384,18 @@ namespace Controllers
 
                 if (signalType == "Bit")
                     TryAddMemoryBit(signals, fieldName, memoryName, memoryType);
-                else
+                else if (signalType == "Float")
                     TryAddMemoryFloat(signals, fieldName, memoryName, memoryType);
+                else
+                {
+                    MemoryInt memoryInt = MemoryMap.Instance.GetInt(memoryName, memoryType);
+                    signals.Add(new CsvSignal(fieldName, () => memoryInt.Value.ToString(CultureInfo.InvariantCulture)));
+                }
             }
 
             AddControllerFieldSignal<int>(signals, controller, "counter", value => value.ToString(CultureInfo.InvariantCulture));
+            AddControllerFieldSignal<State>(signals, controller, "stateLids", value => value.ToString());
+            AddControllerFieldSignal<State>(signals, controller, "stateBases", value => value.ToString());
 
             return signals;
         }

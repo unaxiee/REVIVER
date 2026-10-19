@@ -1,11 +1,12 @@
-import os
+from pathlib import Path
 import re
 
-scene = "PickPlaceXYZ"
-os.makedirs(scene, exist_ok=True)
+scene = "AssemblerAnalog"
+script_dir = Path(__file__).resolve().parent
+output_dir = script_dir / scene
 
 # Load source lines
-with open(f"../Scenes/{scene}.cs", "r") as f:
+with open(script_dir.parent / "Scenes" / f"{scene}.cs", "r") as f:
     lines = f.readlines()
 
 # 1: Find all output boolean variables
@@ -45,6 +46,7 @@ for i in range(execute_start, execute_end + 1):
             bool_assign_lines.append((i, indent, var, rhs.strip()))
 
 # 4: Generate negated variants
+output_dir.mkdir(exist_ok=True)
 for line_idx, indent, var, rhs in bool_assign_lines:
     new_lines = lines.copy()
     neg_rhs = f"!({rhs})"
@@ -57,5 +59,7 @@ for line_idx, indent, var, rhs in bool_assign_lines:
         elif f"{scene}(" in line:
             new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-    with open(f"{scene}/{new_class_name}.cs", "w") as f:
+    with open(output_dir / f"{new_class_name}.cs", "w") as f:
         f.writelines(new_lines)
+
+print(f"Generated {len(bool_assign_lines)} boolean output manipulation variants in {output_dir}")

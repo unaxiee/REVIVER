@@ -1,7 +1,7 @@
 //-----------------------------------------------------------------------------
 // FACTORY I/O (SDK)
 //
-// Test harness for recovering PickPlaceXYZ after a pause.
+// Shared recovery runner for PickPlaceXYZ and AssemblerAnalog.
 //-----------------------------------------------------------------------------
 
 using System;
@@ -46,15 +46,16 @@ namespace Controllers
 
         public const int CycleTime = 8;
         public const int CsvLogIntervalExecutions = 10;
-        public const int PauseAtExecutionCount = 2000;
-        public const int MaxRecoveryExecutions = 4000;
+        public const int PauseAtExecutionCount = 1000;
+        public const int MaxRecoveryExecutions = 1000;
         public const bool EnableRecording = false;
-        public const bool EnableManipulatedControllerLogging = true;
+        public const bool EnableManipulatedControllerLogging = false;
+        public static readonly bool EnableRecoveryTimingLogging = false;
 
         static readonly string controllerRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers";
-        static readonly string sceneName = "PickPlaceXYZ";
+        static readonly string sceneName = "AssemblerAnalog";
         static readonly string manipulationRoot = Path.Combine(controllerRoot, "Manipulations");
-        static readonly string recoveryScriptRoot = Path.Combine(controllerRoot, "Recovery");
+        static readonly string recoveryScriptRoot = Path.Combine(controllerRoot, "Recovery", sceneName);
         static readonly string recoveryOriginalLogRoot = Path.Combine(controllerRoot, "Logs", "Recovery", "original");
         static readonly string recoveryEnhancedLogRoot = Path.Combine(controllerRoot, "Logs", "Recovery", "enhanced");
         static readonly string enhanceCsvScriptPath = Path.Combine(controllerRoot, "Logs", "enhance_csv_with_box_positions.py");
@@ -68,13 +69,11 @@ namespace Controllers
         {
         
         };
+        // Filenames without .cs, for the scene selected above. Both scenes use this list.
+        // PickPlaceXYZ selections must also appear in clusters_csv_inventory.csv.
         static readonly string[] specificManipulationNames =
         {
-            "PickPlaceXYZ_spX_3_1f_to_3_12f_L128",
-            "PickPlaceXYZ_spX_3_1f_to_2_08f_L121",
-            "PickPlaceXYZ_spX_3_1f_to_2_36f_L121",
-            "PickPlaceXYZ_spX_3_1f_to_2_71f_L121",
-            "PickPlaceXYZ_spX_3_1f_to_3_14f_L121"
+            "AssemblerAnalog_setZ_10_0f_to_neg_1f_L114"
         };
         static readonly string[] specificManipulationNameFragments =
         {
@@ -85,231 +84,289 @@ namespace Controllers
         
         };
 
+        sealed class RecoveryScene
+        {
+            public Func<string, ManipulationRun[]> SelectRuns { get; set; }
+            public Func<Controller, ManipulationRun, RecoverySetup> Prepare { get; set; }
+            public Action<string, string> EnhanceLog { get; set; }
+        }
+
+        sealed class RecoverySetup
+        {
+            public Func<Controller> CreateController { get; set; }
+            public string Module { get; set; }
+            public TimeSpan StateIdentificationElapsed { get; set; }
+            public TimeSpan ModuleIdentificationElapsed { get; set; }
+            public TimeSpan ScriptWriteElapsed { get; set; }
+            public RecoveryRobustnessLog Robustness { get; set; }
+        }
+
+        static RecoveryScene GetRecoveryScene(string name)
+        {
+            var scenes = new Dictionary<string, RecoveryScene>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["PickPlaceXYZ"] = new RecoveryScene
+                {
+                    SelectRuns = ReadInventoryManipulationRuns,
+                    Prepare = PreparePickPlaceXYZRecovery,
+                    EnhanceLog = EnhanceRecoveryLog
+                },
+                ["AssemblerAnalog"] = new RecoveryScene
+                {
+                    SelectRuns = ReadSelectedManipulationRuns,
+                    Prepare = PrepareAssemblerAnalogRecovery,
+                    EnhanceLog = (original, enhanced) => { }
+                }
+            };
+            if (!scenes.TryGetValue(name, out RecoveryScene scene))
+                throw new InvalidOperationException($"Unsupported recovery scene '{name}'.");
+            return scene;
+        }
+
         static void Main(string[] args)
         {
+            RecoveryScene scene = GetRecoveryScene(sceneName);
             string manipulationFolder = Path.Combine(manipulationRoot, sceneName);
-            ManipulationRun[] manipulationRuns = ReadInventoryManipulationRuns(manipulationFolder);
-            Debug.WriteLine($"Found {manipulationRuns.Length} manipulation classes.");
+            ManipulationRun[] runs = scene.SelectRuns(manipulationFolder);
+            if (runs.Length == 0)
+                throw new InvalidOperationException($"No recovery manipulations selected for {sceneName}.");
+            // Resolve all selected classes before changing the simulation.
+            foreach (ManipulationRun run in runs)
+            {
+                string name = Path.GetFileNameWithoutExtension(run.FilePath);
+                Type type = Type.GetType("Controllers." + name, true);
+                if (!typeof(Controller).IsAssignableFrom(type))
+                    throw new InvalidOperationException($"{name} is not a controller.");
+            }
             InitializeRecoveryTimingLog();
-
             MemoryBit start = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Output);
             MemoryBit pause = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 48, MemoryType.Output);
             MemoryBit running = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Input);
-
-            foreach (ManipulationRun manipulationRun in manipulationRuns)
+            try
             {
-                string manipulationFile = manipulationRun.FilePath;
-                string recoveryCase = manipulationRun.Label;
-                string split = manipulationRun.Split;
-                string controllerName = Path.GetFileNameWithoutExtension(manipulationFile);
-                string relativeFolder = Path.GetDirectoryName(Path.GetRelativePath(manipulationFolder, manipulationFile));
-                string originalCsvFolder = Path.Combine(recoveryOriginalLogRoot, relativeFolder ?? string.Empty);
-                string enhancedCsvFolder = Path.Combine(recoveryEnhancedLogRoot, relativeFolder ?? string.Empty);
-                Directory.CreateDirectory(originalCsvFolder);
-                Directory.CreateDirectory(enhancedCsvFolder);
-
-                string originalCsvPath = Path.Combine(originalCsvFolder, $"{controllerName}.csv");
-                string enhancedCsvPath = Path.Combine(enhancedCsvFolder, $"{controllerName}.csv");
-
-                Type controllerType = Type.GetType($"Controllers.{controllerName}");
-                if (controllerType == null)
+                foreach (ManipulationRun run in runs)
                 {
-                    Debug.WriteLine($"[SKIP] Could not find type Controllers.{controllerName}");
-                    continue;
-                }
-
-                SwitchToRun(start);
-
-                if (EnableRecording)
-                    CreateRecording(Path.Combine(videoRoot, sceneName), controllerName);
-
-                try
-                {
-                    Controller controller = (Controller)Activator.CreateInstance(controllerType);
-                    List<CsvSignal> loggedSignals = EnableManipulatedControllerLogging
-                        ? DiscoverLoggedSignals(manipulationFile, controller)
-                        : new List<CsvSignal>();
-                    Debug.WriteLine($"Running manipulated controller: {controllerName}, label={recoveryCase}");
-
-                    Stopwatch stopwatch = Stopwatch.StartNew();
-                    Stopwatch runStopwatch = Stopwatch.StartNew();
-                    int executionCount = 0;
-                    StreamWriter csvWriter = null;
-
+                    string name = Path.GetFileNameWithoutExtension(run.FilePath);
                     try
                     {
-                        if (EnableManipulatedControllerLogging)
+                        pause.Value = false;
+                        SwitchToRun(start);
+                        if (EnableRecording)
+                            CreateRecording(Path.Combine(videoRoot, sceneName), name);
+                        Controller manipulated = (Controller)Activator.CreateInstance(Type.GetType("Controllers." + name, true));
+                        Debug.WriteLine($"Running {sceneName} manipulation: {name}");
+                        string relativeFolder = Path.GetDirectoryName(Path.GetRelativePath(manipulationFolder, run.FilePath)) ?? string.Empty;
+                        string csvPath = Path.Combine(recoveryOriginalLogRoot, sceneName, relativeFolder, name + ".csv");
+                        string enhancedPath = Path.Combine(recoveryEnhancedLogRoot, sceneName, relativeFolder, name + ".csv");
+                        List<CsvSignal> signals = EnableManipulatedControllerLogging
+                            ? DiscoverLoggedSignals(run.FilePath, manipulated) : new List<CsvSignal>();
+                        StreamWriter writer = null;
+                        try
                         {
-                            csvWriter = new StreamWriter(originalCsvPath, false);
-                            WriteCsvHeader(csvWriter, loggedSignals);
-                        }
-
-                        while (!controller.stopSignal && executionCount < PauseAtExecutionCount)
-                        {
-                            MemoryMap.Instance.Update();
-
-                            if (running.Value)
+                            if (EnableManipulatedControllerLogging)
                             {
-                                stopwatch.Stop();
-                                controller.executionCount = executionCount;
-                                controller.Execute((int)stopwatch.ElapsedMilliseconds);
-
-                                if (executionCount % CsvLogIntervalExecutions == 0)
-                                    WriteCsvRowIfEnabled(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
-
-                                if (controller.captureSignal)
-                                    controller.captureSignal = false;
-
-                                executionCount++;
-                                stopwatch.Restart();
+                                Directory.CreateDirectory(Path.GetDirectoryName(csvPath));
+                                writer = new StreamWriter(csvPath, false);
+                                WriteCsvHeader(writer, signals);
                             }
-
-                            Thread.Sleep(CycleTime);
+                            RunControllerScans(manipulated, running, PauseAtExecutionCount, writer, signals);
                         }
+                        finally
+                        {
+                            writer?.Dispose();
+                        }
+                        if (EnableManipulatedControllerLogging)
+                            scene.EnhanceLog(csvPath, enhancedPath);
 
-                        WriteCsvRowIfEnabled(csvWriter, runStopwatch.ElapsedMilliseconds, executionCount, loggedSignals);
+                        pause.Value = true;
+                        MemoryMap.Instance.Update();
+                        Thread.Sleep(500);
+                        RecoverySetup setup = scene.Prepare(manipulated, run);
+                        if (setup.CreateController == null)
+                        {
+                            AppendSetupTiming(run, setup, TimeSpan.Zero, TimeSpan.Zero);
+                            continue;
+                        }
+                        Stopwatch compilation = Stopwatch.StartNew();
+                        Controller recovery = setup.CreateController();
+                        compilation.Stop();
+                        pause.Value = false;
+                        MemoryMap.Instance.Update();
+                        try
+                        {
+                            RunControllerScans(recovery, running, MaxRecoveryExecutions);
+                        }
+                        finally
+                        {
+                            (recovery as IDisposable)?.Dispose();
+                        }
+                        AppendSetupTiming(run, setup, compilation.Elapsed, GetAdditionalRecoveryModuleExecutionElapsed(recovery));
                     }
                     finally
                     {
-                        csvWriter?.Dispose();
+                        pause.Value = false;
+                        Shutdown(start);
+                        if (EnableRecording)
+                            EndRecording();
                     }
-
-                    if (EnableManipulatedControllerLogging)
-                        EnhanceRecoveryLog(originalCsvPath, enhancedCsvPath);
-
-                    pause.Value = true;
-                    MemoryMap.Instance.Update();
-                    Thread.Sleep(500);
-
-                    Stopwatch setupStopwatch = Stopwatch.StartNew();
-
-                    PickPlaceXYZSnapshot snapshot = PickPlaceXYZSnapshot.Read(controller);
-
-                    Stopwatch stateIdentificationStopwatch = Stopwatch.StartNew();
-                    PickPlaceXYZRecoveryDecision decision = PickPlaceXYZRecoveryStateDecider.Decide(snapshot, recoveryCase);
-                    stateIdentificationStopwatch.Stop();
-
-                    TimeSpan recoveryModuleIdentificationElapsed = TimeSpan.Zero;
-                    if (!decision.StateIdentificationSatisfied)
-                    {
-                        Stopwatch recoveryModuleIdentificationStopwatch = Stopwatch.StartNew();
-                        PickPlaceXYZRecoveryModuleDecision moduleDecision =
-                            PickPlaceXYZRecoveryModuleIdentifier.Decide(snapshot, decision, recoveryCase, controllerName);
-                        decision = moduleDecision.RecoveryDecision;
-                        recoveryModuleIdentificationStopwatch.Stop();
-                        recoveryModuleIdentificationElapsed = recoveryModuleIdentificationStopwatch.Elapsed;
-
-                        if (moduleDecision.ClassificationFailed)
-                        {
-                            Debug.WriteLine($"[SKIP] Recovery module classification failed for {controllerName}: {moduleDecision.Reason}");
-                            setupStopwatch.Stop();
-                            AppendRecoveryTimingLog(
-                                controllerName,
-                                split,
-                                recoveryCase,
-                                "classify failed",
-                                stateIdentificationStopwatch.Elapsed,
-                                recoveryModuleIdentificationElapsed,
-                                TimeSpan.Zero,
-                                TimeSpan.Zero,
-                                TimeSpan.Zero,
-                                BuildFailedClassificationRobustnessLog(recoveryCase, moduleDecision.Classification));
-
-                            pause.Value = false;
-                            MemoryMap.Instance.Update();
-                            Thread.Sleep(500);
-                            Shutdown(start);
-                            continue;
-                        }
-
-                        if (IsUnexpectedRecoveryModuleDecision(recoveryCase, decision.RecoveryModule))
-                        {
-                            Debug.WriteLine(
-                                $"[SKIP] Recovery module mismatch for {controllerName}: " +
-                                $"label={recoveryCase}, selected={decision.RecoveryModule}. {moduleDecision.Reason}");
-                            setupStopwatch.Stop();
-                            AppendRecoveryTimingLog(
-                                controllerName,
-                                split,
-                                recoveryCase,
-                                decision.RecoveryModule.ToString(),
-                                stateIdentificationStopwatch.Elapsed,
-                                recoveryModuleIdentificationElapsed,
-                                TimeSpan.Zero,
-                                TimeSpan.Zero,
-                                TimeSpan.Zero,
-                                BuildMismatchRobustnessLog(recoveryCase, decision.RecoveryModule, moduleDecision.Classification));
-
-                            pause.Value = false;
-                            MemoryMap.Instance.Update();
-                            Thread.Sleep(500);
-                            Shutdown(start);
-                            continue;
-                        }
-                    }
-
-                    Stopwatch scriptWriteStopwatch = Stopwatch.StartNew();
-                    (string recoveryScriptPath, string recoveryClassName) = WriteRecoveryScript(controllerName, snapshot, decision);
-                    scriptWriteStopwatch.Stop();
-
-                    Debug.WriteLine(
-                        $"Recovery decision for {controllerName}: pickingState={decision.PickingState}, " +
-                        $"grabState={decision.GrabState}, counter={decision.Counter}, reason={decision.Reason}");
-
-                    Stopwatch compilationStopwatch = Stopwatch.StartNew();
-                    Controller recoveryController = CreateRuntimeCompiledRecoveryController(
-                        recoveryScriptPath,
-                        recoveryClassName,
-                        decision);
-                    compilationStopwatch.Stop();
-                    setupStopwatch.Stop();
-
-                    pause.Value = false;
-                    MemoryMap.Instance.Update();
-                    Thread.Sleep(500);
-
-                    stopwatch.Restart();
-                    int recoveryExecutions = 0;
-
-                    while (!recoveryController.stopSignal && recoveryExecutions < MaxRecoveryExecutions)
-                    {
-                        MemoryMap.Instance.Update();
-
-                        if (running.Value)
-                        {
-                            stopwatch.Stop();
-                            recoveryController.executionCount = recoveryExecutions;
-                            recoveryController.Execute((int)stopwatch.ElapsedMilliseconds);
-                            recoveryExecutions++;
-                            stopwatch.Restart();
-                        }
-
-                        Thread.Sleep(CycleTime);
-                    }
-
-                    Debug.WriteLine($"Recovery executed {recoveryExecutions} scans for {controllerName}.");
-
-                    AppendRecoveryTimingLog(
-                        controllerName,
-                        split,
-                        recoveryCase,
-                        decision.RecoveryModule.ToString(),
-                        stateIdentificationStopwatch.Elapsed,
-                        recoveryModuleIdentificationElapsed,
-                        scriptWriteStopwatch.Elapsed,
-                        compilationStopwatch.Elapsed,
-                        GetAdditionalRecoveryModuleExecutionElapsed(recoveryController));
-
-                    Shutdown(start);
-                }
-                finally
-                {
-                    if (EnableRecording)
-                        EndRecording();
                 }
             }
+            finally
+            {
+                MemoryMap.Instance.Dispose();
+            }
+        }
 
-            MemoryMap.Instance.Dispose();
+        static ManipulationRun[] ReadSelectedManipulationRuns(string folder)
+        {
+            if (specificManipulationNames.Length == 0)
+                throw new InvalidOperationException("Configure specificManipulationNames before running recovery.");
+            return specificManipulationNames.Distinct(StringComparer.OrdinalIgnoreCase).Select(name =>
+            {
+                if (Path.GetFileName(name) != name || !name.StartsWith(sceneName + "_", StringComparison.Ordinal))
+                    throw new ArgumentException($"Invalid {sceneName} manipulation name: {name}");
+                string path = Path.Combine(folder, name + ".cs");
+                if (!File.Exists(path))
+                    throw new FileNotFoundException("Recovery manipulation not found.", path);
+                return new ManipulationRun { FilePath = path, Label = "", Split = "" };
+            }).ToArray();
+        }
+
+        static RecoverySetup PrepareAssemblerAnalogRecovery(Controller controller, ManipulationRun run)
+        {
+            string name = Path.GetFileNameWithoutExtension(run.FilePath);
+            AssemblerAnalogSnapshot snapshot = AssemblerAnalogSnapshot.Read(controller);
+            Stopwatch identification = Stopwatch.StartNew();
+            AssemblerAnalogRecoveryDecision decision = AssemblerAnalogRecoveryStateDecider.Decide(snapshot);
+            identification.Stop();
+            Debug.WriteLine($"AssemblerAnalog identification: lids={decision.LidsState}, bases={decision.BasesState}; {decision.Reason}");
+            TimeSpan moduleIdentificationElapsed = TimeSpan.Zero;
+            if (!decision.StateIdentificationSatisfied)
+            {
+                Stopwatch moduleIdentification = Stopwatch.StartNew();
+                decision = AssemblerAnalogRecoveryModuleIdentifier.Decide(snapshot, decision);
+                moduleIdentification.Stop();
+                moduleIdentificationElapsed = moduleIdentification.Elapsed;
+                Debug.WriteLine($"AssemblerAnalog module identification: {decision.Reason}");
+                if (!decision.ReverseBaseWithoutLid && !decision.RecoverSeparatedLidAndBase
+                    && !decision.RecoverStackedLids && !decision.RecoverHeldLidWaitForBase
+                    && !decision.RecoverTwoBasesTwoLids && !decision.RecoverAlternatingLidBase && !decision.RecoverHeldAssemblyTwoBases && !decision.RecoverMisplacedAssembly && !decision.RecoverBaseAndLid && !decision.RepositionBase)
+                {
+                    return new RecoverySetup
+                    {
+                        Module = "no module match",
+                        StateIdentificationElapsed = identification.Elapsed,
+                        ModuleIdentificationElapsed = moduleIdentificationElapsed
+                    };
+                }
+            }
+            Stopwatch writing = Stopwatch.StartNew();
+            var script = AssemblerAnalogRecoveryScriptWriter.Write(
+                Path.Combine(controllerRoot, "Scenes", "AssemblerAnalog.cs"), recoveryScriptRoot, name, snapshot, decision);
+            writing.Stop();
+            return new RecoverySetup
+            {
+                Module = decision.RepositionBase ? "RepositionBase"
+                    : decision.RecoverBaseAndLid ? "RetrieveBaseAndLid"
+                    : decision.RecoverMisplacedAssembly ? "MisplacedAssembly"
+                    : decision.RecoverHeldAssemblyTwoBases ? "HeldAssemblyTwoBases"
+                    : decision.RecoverAlternatingLidBase ? "AlternatingLidBase"
+                    : decision.RecoverTwoBasesTwoLids ? "TwoBasesTwoLids"
+                    : decision.RecoverHeldLidWaitForBase ? "HeldLidWaitForBase"
+                    : decision.RecoverStackedLids ? "StackedLids"
+                    : decision.RecoverSeparatedLidAndBase ? "SeparatedLidAndBase"
+                    : decision.ReverseBaseWithoutLid
+                    ? (decision.ClearBaseBeforeReverse ? "ClearBaseThenReverse" : "BaseWithoutLidReverse")
+                    : "BenignResume",
+                StateIdentificationElapsed = identification.Elapsed,
+                ModuleIdentificationElapsed = moduleIdentificationElapsed,
+                ScriptWriteElapsed = writing.Elapsed,
+                CreateController = () =>
+                {
+                    string assemblyPath = CompileRecoveryScript(script.Path, script.ClassName);
+                    Type type = Assembly.LoadFrom(assemblyPath).GetType("Controllers." + script.ClassName, true);
+                    return (Controller)Activator.CreateInstance(type);
+                }
+            };
+        }
+
+        static RecoverySetup PreparePickPlaceXYZRecovery(Controller controller, ManipulationRun run)
+        {
+            string name = Path.GetFileNameWithoutExtension(run.FilePath);
+            PickPlaceXYZSnapshot snapshot = PickPlaceXYZSnapshot.Read(controller);
+            Stopwatch identification = Stopwatch.StartNew();
+            PickPlaceXYZRecoveryDecision decision = PickPlaceXYZRecoveryStateDecider.Decide(snapshot, run.Label);
+            identification.Stop();
+            var setup = new RecoverySetup { StateIdentificationElapsed = identification.Elapsed };
+            if (!decision.StateIdentificationSatisfied)
+            {
+                Stopwatch moduleIdentification = Stopwatch.StartNew();
+                PickPlaceXYZRecoveryModuleDecision moduleDecision =
+                    PickPlaceXYZRecoveryModuleIdentifier.Decide(snapshot, decision, run.Label, name);
+                decision = moduleDecision.RecoveryDecision;
+                moduleIdentification.Stop();
+                setup.ModuleIdentificationElapsed = moduleIdentification.Elapsed;
+                if (moduleDecision.ClassificationFailed)
+                {
+                    Debug.WriteLine($"[SKIP] Recovery module classification failed for {name}: {moduleDecision.Reason}");
+                    setup.Module = "classify failed";
+                    setup.Robustness = BuildFailedClassificationRobustnessLog(run.Label, moduleDecision.Classification);
+                    return setup;
+                }
+                if (IsUnexpectedRecoveryModuleDecision(run.Label, decision.RecoveryModule))
+                {
+                    Debug.WriteLine($"[SKIP] Recovery module mismatch for {name}: {moduleDecision.Reason}");
+                    setup.Module = decision.RecoveryModule.ToString();
+                    setup.Robustness = BuildMismatchRobustnessLog(run.Label, decision.RecoveryModule, moduleDecision.Classification);
+                    return setup;
+                }
+            }
+            Stopwatch writing = Stopwatch.StartNew();
+            var script = WriteRecoveryScript(name, snapshot, decision);
+            writing.Stop();
+            setup.ScriptWriteElapsed = writing.Elapsed;
+            setup.Module = decision.RecoveryModule.ToString();
+            setup.CreateController = () => CreateRuntimeCompiledRecoveryController(script.Path, script.ClassName, decision);
+            Debug.WriteLine($"PickPlaceXYZ identification: pickingState={decision.PickingState}, grabState={decision.GrabState}; {decision.Reason}");
+            return setup;
+        }
+
+        static void AppendSetupTiming(ManipulationRun run, RecoverySetup setup, TimeSpan compilation, TimeSpan additionalExecution)
+        {
+            AppendRecoveryTimingLog(Path.GetFileNameWithoutExtension(run.FilePath), run.Split, run.Label,
+                setup.Module, setup.StateIdentificationElapsed, setup.ModuleIdentificationElapsed,
+                setup.ScriptWriteElapsed, compilation, additionalExecution, setup.Robustness);
+        }
+
+        static void RunControllerScans(Controller controller, MemoryBit running, int maxExecutions,
+            StreamWriter writer = null, List<CsvSignal> signals = null)
+        {
+            Stopwatch cycle = Stopwatch.StartNew();
+            Stopwatch noScans = Stopwatch.StartNew();
+            Stopwatch elapsed = Stopwatch.StartNew();
+            int count = 0;
+            while (!controller.stopSignal && count < maxExecutions)
+            {
+                MemoryMap.Instance.Update();
+                if (running.Value)
+                {
+                    controller.executionCount = count;
+                    controller.Execute((int)cycle.ElapsedMilliseconds);
+                    if (writer != null && count % CsvLogIntervalExecutions == 0)
+                        WriteCsvRowIfEnabled(writer, elapsed.ElapsedMilliseconds, count, signals);
+                    controller.captureSignal = false;
+                    count++;
+                    cycle.Restart();
+                    noScans.Restart();
+                }
+                else if (noScans.ElapsedMilliseconds > 15000)
+                    throw new TimeoutException("Factory I/O has not reported running for 15 seconds.");
+                Thread.Sleep(CycleTime);
+            }
+            MemoryMap.Instance.Update();
+            if (writer != null)
+                WriteCsvRowIfEnabled(writer, elapsed.ElapsedMilliseconds, count, signals);
+            Debug.WriteLine($"Executed {count} scans: {controller.GetType().Name}");
         }
 
         static void SwitchToRun(MemoryBit start)
@@ -374,7 +431,7 @@ namespace Controllers
 
             string source = File.ReadAllText(controllerSourcePath);
             Regex signalPattern = new Regex(
-                @"Memory(?<signalType>Bit|Float)\s+(?<fieldName>\w+)\s*=\s*MemoryMap\.Instance\.Get(?<getterType>Bit|Float)\(""(?<memoryName>[^""]+)"",\s*MemoryType\.(?<memoryType>Input|Output)\);");
+                @"Memory(?<signalType>Bit|Float|Int)\s+(?<fieldName>\w+)\s*=\s*MemoryMap\.Instance\.Get(?<getterType>Bit|Float|Int)\(""(?<memoryName>[^""]+)"",\s*MemoryType\.(?<memoryType>Input|Output)\);");
             HashSet<string> seenNames = new HashSet<string>(signals.Select(signal => signal.Name));
 
             foreach (Match match in signalPattern.Matches(source))
@@ -393,11 +450,20 @@ namespace Controllers
 
                 if (signalType == "Bit")
                     TryAddMemoryBit(signals, fieldName, memoryName, memoryType);
-                else
+                else if (signalType == "Float")
                     TryAddMemoryFloat(signals, fieldName, memoryName, memoryType);
+                else
+                {
+                    MemoryInt memoryInt = MemoryMap.Instance.GetInt(memoryName, memoryType);
+                    if (memoryInt == null)
+                        throw new InvalidOperationException($"Missing CSV log integer tag '{memoryName}'.");
+                    signals.Add(new CsvSignal(fieldName, () => memoryInt.Value.ToString(CultureInfo.InvariantCulture)));
+                }
             }
 
             AddControllerFieldSignal<int>(signals, controller, "counter", value => value.ToString(CultureInfo.InvariantCulture));
+            foreach (string name in new[] { "stateLids", "stateBases", "pickingState", "grabState" })
+                AddControllerFieldSignal<State>(signals, controller, name, value => value.ToString());
 
             return signals;
         }
@@ -637,6 +703,8 @@ namespace Controllers
 
         static void InitializeRecoveryTimingLog()
         {
+            if (!EnableRecoveryTimingLogging)
+                return;
             Directory.CreateDirectory(recoveryScriptRoot);
             string path = Path.Combine(recoveryScriptRoot, "recovery_timing.csv");
             EnsureCsvHeader(path, "manipulation,split,label,recovery_module,state_identification_ms,recovery_module_identification_ms,script_write_ms,compilation_load_ms,recovery_execution_ms,expected_module_robustness,selected_module_robustness,max_robustness_module,max_robustness");
@@ -668,6 +736,8 @@ namespace Controllers
             TimeSpan recoveryExecutionElapsed,
             RecoveryRobustnessLog robustnessLog = null)
         {
+            if (!EnableRecoveryTimingLogging)
+                return;
             string path = Path.Combine(recoveryScriptRoot, "recovery_timing.csv");
             bool hasAdditionalRecoveryModule =
                 recoveryModule != RecoveryModule.BenignResume.ToString() &&
@@ -977,6 +1047,9 @@ namespace Controllers
     <Reference Include=""Controllers"">
       <HintPath>{EscapeXml(currentAssemblyPath)}</HintPath>
     </Reference>
+    <Reference Include=""Engine IO"">
+      <HintPath>{EscapeXml(typeof(MemoryMap).Assembly.Location)}</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
 ";
@@ -996,1012 +1069,4 @@ namespace Controllers
             return value.ToString("G", CultureInfo.InvariantCulture);
         }
     }
-
-    public class Recovery_PickPlaceXYZ : Controller
-    {
-        PickPlaceXYZBenignRecoveryController benignController;
-        PickPlaceXYZOverflowRecoveryModuleController overflowController;
-        PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController misalignmentBeltConveyorController;
-        PickPlaceXYZUnderflowRecoveryModuleController underflowController;
-        PickPlaceXYZMisalignmentBoxRecoveryModuleController misalignmentBoxController;
-        Controller activeController;
-        long additionalRecoveryModuleExecutionMilliseconds;
-
-        public bool AdditionalRecoveryModuleTransferred { get; private set; }
-
-        public TimeSpan AdditionalRecoveryModuleExecutionElapsed
-        {
-            get { return TimeSpan.FromMilliseconds(additionalRecoveryModuleExecutionMilliseconds); }
-        }
-
-        public Recovery_PickPlaceXYZ(PickPlaceXYZRecoveryDecision decision)
-        {
-            if (decision.RecoveryModule == RecoveryModule.Overflow)
-            {
-                overflowController = new PickPlaceXYZOverflowRecoveryModuleController(decision);
-                activeController = overflowController;
-            }
-            else if (decision.RecoveryModule == RecoveryModule.MisalignmentBeltConveyor)
-            {
-                misalignmentBeltConveyorController =
-                    new PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController(decision);
-                activeController = misalignmentBeltConveyorController;
-            }
-            else if (decision.RecoveryModule == RecoveryModule.Underflow)
-            {
-                underflowController =
-                    new PickPlaceXYZUnderflowRecoveryModuleController(decision);
-                activeController = underflowController;
-            }
-            else if (IsMisalignmentBoxModule(decision.RecoveryModule))
-            {
-                misalignmentBoxController =
-                    new PickPlaceXYZMisalignmentBoxRecoveryModuleController(decision);
-                activeController = misalignmentBoxController;
-            }
-            else
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(decision);
-                activeController = benignController;
-            }
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            bool additionalRecoveryModuleActive =
-                activeController == overflowController
-                && overflowController != null
-                && !overflowController.ModuleComplete;
-            additionalRecoveryModuleActive =
-                additionalRecoveryModuleActive
-                || (activeController == misalignmentBeltConveyorController
-                    && misalignmentBeltConveyorController != null
-                    && !misalignmentBeltConveyorController.ModuleComplete);
-            additionalRecoveryModuleActive =
-                additionalRecoveryModuleActive
-                || (activeController == underflowController
-                    && underflowController != null
-                    && !underflowController.ModuleComplete);
-            additionalRecoveryModuleActive =
-                additionalRecoveryModuleActive
-                || (activeController == misalignmentBoxController
-                    && misalignmentBoxController != null
-                    && !misalignmentBoxController.ModuleComplete);
-
-            activeController.executionCount = executionCount;
-            activeController.Execute(elapsedMilliseconds);
-
-            if (additionalRecoveryModuleActive)
-                additionalRecoveryModuleExecutionMilliseconds += elapsedMilliseconds;
-
-            if (activeController == overflowController && overflowController.ModuleComplete)
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(
-                    overflowController.CreateContinuationDecision());
-                activeController = benignController;
-                AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Overflow recovery module complete; control transferred to benign PickPlaceXYZ controller.");
-                return;
-            }
-
-            if (activeController == misalignmentBeltConveyorController
-                && misalignmentBeltConveyorController.ModuleComplete)
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(
-                    misalignmentBeltConveyorController.CreateContinuationDecision());
-                activeController = benignController;
-                AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Misalignment belt conveyor recovery module complete; control transferred to benign PickPlaceXYZ controller.");
-                return;
-            }
-
-            if (activeController == underflowController
-                && underflowController.ModuleComplete)
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(
-                    underflowController.CreateContinuationDecision());
-                activeController = benignController;
-                AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Underflow recovery module complete; control transferred to benign PickPlaceXYZ controller.");
-                return;
-            }
-
-            if (activeController == misalignmentBoxController
-                && misalignmentBoxController.ModuleComplete)
-            {
-                benignController = new PickPlaceXYZBenignRecoveryController(
-                    misalignmentBoxController.CreateContinuationDecision());
-                activeController = benignController;
-                AdditionalRecoveryModuleTransferred = true;
-                Debug.WriteLine("Misalignment box recovery module complete; control transferred to benign PickPlaceXYZ controller.");
-                return;
-            }
-
-            stopSignal = activeController.stopSignal;
-        }
-
-        static bool IsMisalignmentBoxModule(RecoveryModule recoveryModule)
-        {
-            return recoveryModule == RecoveryModule.MisalignmentFirstBox
-                || recoveryModule == RecoveryModule.MisalignmentSecondBox
-                || recoveryModule == RecoveryModule.MisalignmentThirdBox;
-        }
-    }
-
-    public class PickPlaceXYZBenignRecoveryController : Controller
-    {
-        protected MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
-        protected MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
-        protected MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        protected MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
-        protected MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
-        protected MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
-        protected MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
-        protected MemoryFloat spX = MemoryMap.Instance.GetFloat("SP X", MemoryType.Output);
-        protected MemoryFloat spY = MemoryMap.Instance.GetFloat("SP Y", MemoryType.Output);
-        protected MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
-
-        protected MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
-        protected MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
-        protected MemoryBit detected = MemoryMap.Instance.GetBit("Detected", MemoryType.Input);
-        protected MemoryFloat posX = MemoryMap.Instance.GetFloat("X", MemoryType.Input);
-        protected MemoryFloat posY = MemoryMap.Instance.GetFloat("Y", MemoryType.Input);
-        protected MemoryFloat posZ = MemoryMap.Instance.GetFloat("Z", MemoryType.Input);
-
-        protected RTRIG rtPartAtPlace = new RTRIG();
-        protected RTRIG rtBoxAtPlace = new RTRIG();
-
-        protected FTRIG ftPartAtPlace = new FTRIG();
-        protected FTRIG ftBoxAtPlace = new FTRIG();
-
-        protected State pickingState = State.State0;
-        protected State grabState = State.State0;
-
-        protected TON grabTimer = new TON();
-
-        protected int counter;
-        protected int exitBox;
-        readonly int stopExitBox;
-
-        public PickPlaceXYZBenignRecoveryController(PickPlaceXYZRecoveryDecision decision)
-        {
-            pickingState = decision.PickingState;
-            grabState = decision.GrabState;
-            counter = decision.Counter;
-            exitBox = decision.ExitBox;
-            stopExitBox = decision.StopExitBox;
-            grabTimer.PT = 1000;
-
-            if (decision.OverrideSpZ)
-                spZ.Value = decision.RecoverySpZ;
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            ExecutePickPlaceCycle(elapsedMilliseconds);
-
-            if (exitBox >= stopExitBox)
-                stopSignal = true;
-        }
-
-        protected void ExecutePickPlaceCycle(int elapsedMilliseconds)
-        {
-            ftPartAtPlace.CLK(!partAtPlace.Value);
-            ftBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            rtPartAtPlace.CLK(!partAtPlace.Value);
-            rtBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            partConveyorForward.Value = false;
-            partConveyorBackward.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
-            exitConveyor.Value = false;
-
-            if (pickingState == State.State0)
-            {
-                grabState = State.State0;
-
-                if (!partAtPlace.Value && !boxAtPlace.Value && counter < 3)
-                    pickingState = State.State1;
-            }
-            else if (pickingState == State.State1)
-            {
-                c.Value = false;
-
-                spX.Value = 8.3f;
-                spY.Value = 5.5f;
-
-                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
-                {
-                    grabState = State.State1;
-                    pickingState = State.State2;
-                }
-            }
-            else if (pickingState == State.State2)
-            {
-                if (grabState == State.State0)
-                    pickingState = State.State3;
-            }
-            else if (pickingState == State.State3)
-            {
-                if (counter == 0)
-                {
-                    spX.Value = 3.1f;
-                    spY.Value = 3.8f;
-                }
-                else if (counter == 1)
-                {
-                    spX.Value = 3.1f;
-                    spY.Value = 6.7f;
-                }
-                else if (counter == 2)
-                {
-                    c.Value = true;
-
-                    spX.Value = 3.1f;
-                    spY.Value = 5.3f;
-                }
-
-                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
-                    pickingState = State.State4;
-            }
-            else if (pickingState == State.State4)
-            {
-                if (counter == 0 || counter == 1)
-                {
-                    spZ.Value = 10f;
-                }
-                else if (counter == 2)
-                {
-                    spZ.Value = 5f;
-                }
-
-                if (Near(posZ.Value, spZ.Value, 0.01f))
-                {
-                    grab.Value = false;
-
-                    counter++;
-
-                    pickingState = State.State5;
-                }
-            }
-            else if (pickingState == State.State5)
-            {
-                spZ.Value = 0f;
-
-                if (Near(posZ.Value, spZ.Value, 0.01f))
-                    pickingState = State.State0;
-            }
-
-            if (grabState == State.State0)
-            {
-            }
-            else if (grabState == State.State1)
-            {
-                spZ.Value = 5.3f;
-
-                if (detected.Value)
-                {
-                    spZ.Value = posZ.Value;
-                    grabState = State.State2;
-                }
-            }
-            else if (grabState == State.State2)
-            {
-                grab.Value = true;
-
-                grabTimer.IN = true;
-
-                if (grabTimer.Q)
-                {
-                    grabTimer.IN = false;
-                    grabState = State.State3;
-                }
-            }
-            else if (grabState == State.State3)
-            {
-                spZ.Value = 0f;
-
-                if (Near(spZ.Value, posZ.Value, 0.01f))
-                    grabState = State.State0;
-            }
-
-            if (partAtPlace.Value)
-                partConveyorForward.Value = true;
-            if (counter == 3)
-            {
-                boxConveyorForward.Value = true;
-                exitConveyor.Value = true;
-
-                if (ftBoxAtPlace.Q)
-                {
-                    counter = 0;
-                    exitConveyor.Value = false;
-                    exitBox++;
-                }
-            }
-            else
-            {
-                if (boxAtPlace.Value)
-                {
-                    boxConveyorForward.Value = true;
-                    exitConveyor.Value = true;
-                }
-            }
-
-        }
-
-        bool Near(float val1, float val2, float delta)
-        {
-            return Math.Abs(val1 - val2) < delta;
-        }
-    }
-
-    public sealed class PickPlaceXYZOverflowRecoveryModuleController : Controller
-    {
-        enum OverflowRecoveryState
-        {
-            LiftToHomeZ,
-            SafePickPlace,
-            Complete
-        }
-
-        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
-        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
-        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
-        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
-        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
-        MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
-        MemoryFloat spX = MemoryMap.Instance.GetFloat("SP X", MemoryType.Output);
-        MemoryFloat spY = MemoryMap.Instance.GetFloat("SP Y", MemoryType.Output);
-        MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
-
-        MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
-        MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
-        MemoryBit detected = MemoryMap.Instance.GetBit("Detected", MemoryType.Input);
-        MemoryFloat posX = MemoryMap.Instance.GetFloat("X", MemoryType.Input);
-        MemoryFloat posY = MemoryMap.Instance.GetFloat("Y", MemoryType.Input);
-        MemoryFloat posZ = MemoryMap.Instance.GetFloat("Z", MemoryType.Input);
-
-        RTRIG rtPartAtPlace = new RTRIG();
-        RTRIG rtBoxAtPlace = new RTRIG();
-
-        FTRIG ftPartAtPlace = new FTRIG();
-        FTRIG ftBoxAtPlace = new FTRIG();
-
-        State pickingState = State.State0;
-        State grabState = State.State0;
-
-        TON grabTimer = new TON();
-
-        int counter;
-        int exitBox;
-        State previousGrabState;
-        int safeGrabMomentCount;
-        int safeGrabCompletionThreshold = 6;
-        OverflowRecoveryState recoveryState = OverflowRecoveryState.LiftToHomeZ;
-
-        public bool ModuleComplete { get; private set; }
-
-        public PickPlaceXYZOverflowRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
-        {
-            pickingState = decision.PickingState;
-            grabState = decision.GrabState;
-            counter = decision.Counter;
-            exitBox = decision.ExitBox;
-            previousGrabState = grabState;
-            safeGrabCompletionThreshold = decision.SafeGrabCompletionThreshold;
-            grabTimer.PT = 1000;
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            ftPartAtPlace.CLK(!partAtPlace.Value);
-            ftBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            rtPartAtPlace.CLK(!partAtPlace.Value);
-            rtBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            partConveyorForward.Value = false;
-            partConveyorBackward.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
-            exitConveyor.Value = false;
-
-            if (recoveryState == OverflowRecoveryState.LiftToHomeZ)
-            {
-                ExecuteLiftToHomeZ();
-                return;
-            }
-
-            if (recoveryState == OverflowRecoveryState.Complete)
-            {
-                ModuleComplete = true;
-                return;
-            }
-
-            if (pickingState == State.State0)
-            {
-                grabState = State.State0;
-
-                if (!partAtPlace.Value && !boxAtPlace.Value && counter < 3)
-                    pickingState = State.State1;
-            }
-            else if (pickingState == State.State1)
-            {
-                c.Value = false;
-
-                spX.Value = 8.3f;
-                spY.Value = 5.5f;
-
-                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
-                {
-                    grabState = State.State1;
-                    pickingState = State.State2;
-                }
-            }
-            else if (pickingState == State.State2)
-            {
-                if (grabState == State.State0)
-                    pickingState = State.State3;
-            }
-            else if (pickingState == State.State3)
-            {
-                if (counter == 0)
-                {
-                    spX.Value = 3.1f;
-                    spY.Value = 3.8f;
-                }
-                else if (counter == 1)
-                {
-                    spX.Value = 3.1f;
-                    spY.Value = 6.7f;
-                }
-                else if (counter == 2)
-                {
-                    c.Value = true;
-
-                    spX.Value = 3.1f;
-                    spY.Value = 5.3f;
-                }
-
-                if (Near(posX.Value, spX.Value, 0.01f) && Near(posY.Value, spY.Value, 0.01f))
-                    pickingState = State.State4;
-            }
-            else if (pickingState == State.State4)
-            {
-                if (counter == 0 || counter == 1)
-                {
-                    spZ.Value = 10f;
-                }
-                else if (counter == 2)
-                {
-                    spZ.Value = 5f;
-                }
-
-                if (Near(posZ.Value, spZ.Value, 0.01f))
-                {
-                    grab.Value = false;
-
-                    counter++;
-
-                    pickingState = State.State5;
-                }
-            }
-            else if (pickingState == State.State5)
-            {
-                spZ.Value = 0f;
-
-                if (Near(posZ.Value, spZ.Value, 0.01f))
-                    pickingState = State.State0;
-            }
-
-            if (grabState == State.State0)
-            {
-            }
-            else if (grabState == State.State1)
-            {
-                spZ.Value = 5.3f;
-
-                if (detected.Value)
-                {
-                    spZ.Value = posZ.Value;
-                    grabState = State.State2;
-                }
-            }
-            else if (grabState == State.State2)
-            {
-                grab.Value = true;
-
-                grabTimer.IN = true;
-
-                if (grabTimer.Q)
-                {
-                    grabTimer.IN = false;
-                    grabState = State.State3;
-                }
-            }
-            else if (grabState == State.State3)
-            {
-                spZ.Value = 0f;
-
-                if (Near(spZ.Value, posZ.Value, 0.01f))
-                    grabState = State.State0;
-            }
-
-            if (grabState == State.State2)
-            {
-                partConveyorForward.Value = false;
-                partConveyorBackward.Value = true;
-            }
-            else if (partAtPlace.Value)
-            {
-                partConveyorForward.Value = true;
-            }
-
-            if (counter == 3)
-            {
-                boxConveyorForward.Value = true;
-                exitConveyor.Value = true;
-
-                if (ftBoxAtPlace.Q)
-                {
-                    counter = 0;
-                    exitConveyor.Value = false;
-                    exitBox++;
-                }
-            }
-            else
-            {
-                if (boxAtPlace.Value)
-                {
-                    boxConveyorForward.Value = true;
-                    exitConveyor.Value = true;
-                }
-            }
-
-            UpdateSafeGrabCount();
-        }
-
-        void ExecuteLiftToHomeZ()
-        {
-            spZ.Value = 0f;
-
-            if (!Near(posZ.Value, spZ.Value, 0.01f))
-            {
-                partConveyorForward.Value = false;
-                partConveyorBackward.Value = true;
-                return;
-            }
-
-            recoveryState = OverflowRecoveryState.SafePickPlace;
-        }
-
-        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
-        {
-            return new PickPlaceXYZRecoveryDecision
-            {
-                PickingState = pickingState,
-                GrabState = grabState,
-                Counter = counter,
-                ExitBox = exitBox,
-                StopExitBox = 2,
-                StateIdentificationSatisfied = true,
-                RecoveryModule = RecoveryModule.BenignResume,
-                Reason = "Continuation from completed overflow recovery module."
-            };
-        }
-
-        void UpdateSafeGrabCount()
-        {
-            bool completedGrabTransition =
-                previousGrabState == State.State2
-                && grabState == State.State3;
-            previousGrabState = grabState;
-
-            if (!completedGrabTransition)
-                return;
-
-            safeGrabMomentCount++;
-            Debug.WriteLine($"Overflow recovery safe grab completion {safeGrabMomentCount}/{safeGrabCompletionThreshold}.");
-
-            if (safeGrabMomentCount >= safeGrabCompletionThreshold)
-            {
-                recoveryState = OverflowRecoveryState.Complete;
-                ModuleComplete = true;
-            }
-        }
-
-        bool Near(float val1, float val2, float delta)
-        {
-            return Math.Abs(val1 - val2) < delta;
-        }
-    }
-
-    public sealed class PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController : Controller
-    {
-        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
-        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
-        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
-        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
-        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
-        MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
-        MemoryFloat posZ = MemoryMap.Instance.GetFloat("Z", MemoryType.Input);
-
-        MemoryBit partAtPlace = MemoryMap.Instance.GetBit("Part at place", MemoryType.Input);
-
-        int counter;
-        int exitBox;
-        int stopExitBox;
-
-        public bool ModuleComplete { get; private set; }
-
-        public PickPlaceXYZMisalignmentBeltConveyorRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
-        {
-            counter = decision.Counter;
-            exitBox = decision.ExitBox;
-            stopExitBox = decision.StopExitBox;
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            partConveyorForward.Value = false;
-            partConveyorBackward.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
-            exitConveyor.Value = false;
-            grab.Value = false;
-
-            spZ.Value = 0f;
-
-            if (!Near(posZ.Value, 0f, 0.01f))
-                return;
-
-            if (partAtPlace.Value)
-            {
-                ModuleComplete = true;
-                return;
-            }
-
-            partConveyorBackward.Value = true;
-        }
-
-        bool Near(float val1, float val2, float delta)
-        {
-            return Math.Abs(val1 - val2) < delta;
-        }
-
-        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
-        {
-            return new PickPlaceXYZRecoveryDecision
-            {
-                PickingState = State.State0,
-                GrabState = State.State0,
-                Counter = counter,
-                ExitBox = exitBox,
-                StopExitBox = 1,
-                StateIdentificationSatisfied = true,
-                RecoveryModule = RecoveryModule.BenignResume,
-                Reason = "Continuation from completed misalignment_beltconveyor recovery module."
-            };
-        }
-    }
-
-    public sealed class PickPlaceXYZUnderflowRecoveryModuleController : Controller
-    {
-        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
-        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
-        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
-        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
-        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
-        MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
-
-        MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
-        FTRIG rtBoxAtPlace = new FTRIG();
-
-        readonly State pickingState;
-        readonly State grabState;
-        readonly int counter;
-        readonly int exitBox;
-        readonly int stopExitBox;
-        readonly bool overrideCFalse;
-        bool movingForwardToLoadingArea;
-
-        public bool ModuleComplete { get; private set; }
-
-        public PickPlaceXYZUnderflowRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
-        {
-            pickingState = decision.PickingState;
-            grabState = decision.GrabState;
-            counter = decision.Counter;
-            exitBox = decision.ExitBox;
-            stopExitBox = decision.StopExitBox;
-            overrideCFalse = decision.PickingState == State.State3;
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            rtBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            partConveyorForward.Value = false;
-            partConveyorBackward.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
-            exitConveyor.Value = false;
-
-            if (overrideCFalse)
-                c.Value = false;
-
-            if (!movingForwardToLoadingArea)
-            {
-                if (rtBoxAtPlace.Q)
-                    movingForwardToLoadingArea = true;
-                else
-                {
-                    boxConveyorBackward.Value = true;
-                    return;
-                }
-            }
-
-            if (boxAtPlace.Value)
-            {
-                ModuleComplete = true;
-                return;
-            }
-
-            boxConveyorForward.Value = true;
-        }
-
-        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
-        {
-            return new PickPlaceXYZRecoveryDecision
-            {
-                PickingState = pickingState,
-                GrabState = grabState,
-                Counter = counter,
-                ExitBox = exitBox,
-                StopExitBox = stopExitBox,
-                StateIdentificationSatisfied = true,
-                RecoveryModule = RecoveryModule.BenignResume,
-                Reason = "Continuation from completed underflow recovery module."
-            };
-        }
-    }
-
-    public sealed class PickPlaceXYZMisalignmentBoxRecoveryModuleController : Controller
-    {
-        enum GrabReleaseStep
-        {
-            MoveAbovePickup,
-            LowerToPickup,
-            CloseGripper,
-            LiftAfterPickup,
-            MoveAbovePlace,
-            LowerToPlace,
-            OpenGripper,
-            LiftAfterPlace
-        }
-
-        MemoryBit partConveyorForward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (+)", MemoryType.Output);
-        MemoryBit partConveyorBackward = MemoryMap.Instance.GetBit("Belt Conveyor (4m) 1 (-)", MemoryType.Output);
-        MemoryBit boxConveyorForward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (+)", MemoryType.Output);
-        MemoryBit boxConveyorBackward = MemoryMap.Instance.GetBit("Roller Conveyor (6m) 1 (-)", MemoryType.Output);
-        MemoryBit exitConveyor = MemoryMap.Instance.GetBit("Exit conveyor", MemoryType.Output);
-        MemoryBit grab = MemoryMap.Instance.GetBit("Grab", MemoryType.Output);
-        MemoryBit c = MemoryMap.Instance.GetBit("C +", MemoryType.Output);
-        MemoryFloat spX = MemoryMap.Instance.GetFloat("SP X", MemoryType.Output);
-        MemoryFloat spY = MemoryMap.Instance.GetFloat("SP Y", MemoryType.Output);
-        MemoryFloat spZ = MemoryMap.Instance.GetFloat("SP Z", MemoryType.Output);
-        MemoryFloat posX = MemoryMap.Instance.GetFloat("X", MemoryType.Input);
-        MemoryFloat posY = MemoryMap.Instance.GetFloat("Y", MemoryType.Input);
-        MemoryFloat posZ = MemoryMap.Instance.GetFloat("Z", MemoryType.Input);
-        MemoryBit boxAtPlace = MemoryMap.Instance.GetBit("Box at place", MemoryType.Input);
-        FTRIG rtBoxAtPlace = new FTRIG();
-
-        readonly PickPlaceXYZGrabReleaseOperation[] operations;
-        readonly int counter;
-        readonly int exitBox;
-        readonly int stopExitBox;
-        int operationIndex;
-        TON grabTimer = new TON();
-        bool movingForwardToLoadingArea;
-        bool rollerConveyorRecoveryComplete;
-        GrabReleaseStep step = GrabReleaseStep.MoveAbovePickup;
-
-        public bool ModuleComplete { get; private set; }
-
-        public PickPlaceXYZMisalignmentBoxRecoveryModuleController(PickPlaceXYZRecoveryDecision decision)
-        {
-            operations = decision.GrabReleaseOperations ?? new PickPlaceXYZGrabReleaseOperation[0];
-            counter = decision.Counter;
-            exitBox = decision.ExitBox;
-            stopExitBox = decision.StopExitBox;
-            grabTimer.PT = 1000;
-        }
-
-        public override void Execute(int elapsedMilliseconds)
-        {
-            rtBoxAtPlace.CLK(!boxAtPlace.Value);
-
-            partConveyorForward.Value = false;
-            partConveyorBackward.Value = false;
-            boxConveyorForward.Value = false;
-            boxConveyorBackward.Value = false;
-            exitConveyor.Value = false;
-            c.Value = false;
-
-            // Temporarily bypass the initial roller conveyor recovery phase.
-            // if (!rollerConveyorRecoveryComplete)
-            // {
-            //     ExecuteRollerConveyorRecovery();
-            //     return;
-            // }
-
-            if (operationIndex >= operations.Length)
-            {
-                ModuleComplete = true;
-                return;
-            }
-
-            if (ExecuteGrabReleaseOperation(operations[operationIndex], elapsedMilliseconds))
-            {
-                operationIndex++;
-                step = GrabReleaseStep.MoveAbovePickup;
-            }
-        }
-
-        void ExecuteRollerConveyorRecovery()
-        {
-            grab.Value = false;
-            spZ.Value = 0f;
-
-            if (!movingForwardToLoadingArea)
-            {
-                if (rtBoxAtPlace.Q)
-                    movingForwardToLoadingArea = true;
-                else
-                {
-                    boxConveyorBackward.Value = true;
-                    return;
-                }
-            }
-
-            if (boxAtPlace.Value)
-            {
-                rollerConveyorRecoveryComplete = true;
-                return;
-            }
-
-            boxConveyorForward.Value = true;
-        }
-
-        bool ExecuteGrabReleaseOperation(PickPlaceXYZGrabReleaseOperation operation, int elapsedMilliseconds)
-        {
-            if (step == GrabReleaseStep.MoveAbovePickup)
-            {
-                grab.Value = false;
-                c.Value = operation.GrabCValue;
-                MoveTo(operation.PickupX, operation.PickupY, 0f);
-
-                if (Near(posX.Value, operation.PickupX, 0.01f)
-                    && Near(posY.Value, operation.PickupY, 0.01f)
-                    && Near(posZ.Value, 0f, 0.01f))
-                    step = GrabReleaseStep.LowerToPickup;
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.LowerToPickup)
-            {
-                grab.Value = false;
-                c.Value = operation.GrabCValue;
-                MoveTo(operation.PickupX, operation.PickupY, operation.PickupZ);
-
-                if (Near(posZ.Value, operation.PickupZ, 0.01f))
-                    step = GrabReleaseStep.CloseGripper;
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.CloseGripper)
-            {
-                grab.Value = true;
-                c.Value = operation.GrabCValue;
-                grabTimer.IN = true;
-
-                if (grabTimer.Q)
-                {
-                    grabTimer.IN = false;
-                    step = GrabReleaseStep.LiftAfterPickup;
-                }
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.LiftAfterPickup)
-            {
-                grab.Value = true;
-                c.Value = operation.ReleaseCValue;
-                MoveTo(operation.PickupX, operation.PickupY, 0f);
-
-                if (Near(posZ.Value, 0f, 0.01f))
-                    step = GrabReleaseStep.MoveAbovePlace;
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.MoveAbovePlace)
-            {
-                grab.Value = true;
-                c.Value = operation.ReleaseCValue;
-                MoveTo(operation.PlaceX, operation.PlaceY, 0f);
-
-                if (Near(posX.Value, operation.PlaceX, 0.01f)
-                    && Near(posY.Value, operation.PlaceY, 0.01f)
-                    && Near(posZ.Value, 0f, 0.01f))
-                    step = GrabReleaseStep.LowerToPlace;
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.LowerToPlace)
-            {
-                grab.Value = true;
-                c.Value = operation.ReleaseCValue;
-                MoveTo(operation.PlaceX, operation.PlaceY, operation.PlaceZ);
-
-                if (Near(posZ.Value, operation.PlaceZ, 0.01f))
-                    step = GrabReleaseStep.OpenGripper;
-
-                return false;
-            }
-
-            if (step == GrabReleaseStep.OpenGripper)
-            {
-                grab.Value = false;
-                c.Value = operation.ReleaseCValue;
-                step = GrabReleaseStep.LiftAfterPlace;
-
-                return false;
-            }
-
-            grab.Value = false;
-            c.Value = false;
-            MoveTo(operation.PlaceX, operation.PlaceY, 0f);
-
-            return Near(posZ.Value, 0f, 0.01f);
-        }
-
-        void MoveTo(float x, float y, float z)
-        {
-            spX.Value = x;
-            spY.Value = y;
-            spZ.Value = z;
-        }
-
-        bool Near(float val1, float val2, float delta)
-        {
-            return Math.Abs(val1 - val2) < delta;
-        }
-
-        public PickPlaceXYZRecoveryDecision CreateContinuationDecision()
-        {
-            return new PickPlaceXYZRecoveryDecision
-            {
-                PickingState = State.State0,
-                GrabState = State.State0,
-                Counter = 3,
-                ExitBox = exitBox,
-                StopExitBox = stopExitBox,
-                StateIdentificationSatisfied = true,
-                RecoveryModule = RecoveryModule.BenignResume,
-                Reason = "Continuation from completed misalignment box recovery module."
-            };
-        }
-    }
-
 }

@@ -7,11 +7,15 @@
     <Platform>x64</Platform>
     <PlatformTarget>x64</PlatformTarget>
     <Platforms>AnyCPU;x64</Platforms>
-	<StartupObject>Controllers.Program_Recovery</StartupObject>
+	<StartupObject>Controllers.Program_FaultInjection</StartupObject>
   </PropertyGroup>
 
   <ItemGroup>
     <Compile Remove="Recovery\**\*.cs" />
+    <Compile Include="Recovery\PickPlaceXYZ\state_identification.cs" />
+    <Compile Include="Recovery\PickPlaceXYZ\recovery_module_identification.cs" />
+    <Compile Include="Recovery\AssemblerAnalog\state_identification.cs" />
+    <Compile Include="Recovery\AssemblerAnalog\recovery_module_identification.cs" />
   </ItemGroup>
 
   <ItemGroup>

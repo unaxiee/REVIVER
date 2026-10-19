@@ -1,12 +1,15 @@
 import re
-import os
+from pathlib import Path
 from collections import defaultdict
 
-scene = "PickPlaceXYZ"
-os.makedirs(scene, exist_ok=True)
+scene = "AssemblerAnalog"
+script_dir = Path(__file__).resolve().parent
+output_dir = script_dir / scene
+output_dir.mkdir(exist_ok=True)
+generated_count = 0
 
 # Read source file
-with open(f"../Scenes/{scene}.cs", "r") as f:
+with open(script_dir.parent / "Scenes" / f"{scene}.cs", "r") as f:
     lines = f.readlines()
 
 # 1. Capture boolean input variables
@@ -44,7 +47,7 @@ for i, line in enumerate(lines):
             trigger_q_usage_lines[trig].append(i)
 print(bool_usage_lines, trigger_q_usage_lines)
 
-# 4. Create one manipulation per variable
+# 4. Create three manipulation variants per matching variable usage line
 manip_types = {
     "neg": lambda var: f"!{var}",
     "true": lambda var: "true",
@@ -68,8 +71,9 @@ for var, line_nums in bool_usage_lines.items():
                 elif f"{scene}(" in line:
                     new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-            with open(f"{scene}/{new_class_name}.cs", "w") as f:
+            with open(output_dir / f"{new_class_name}.cs", "w") as f:
                 f.writelines(new_lines)
+            generated_count += 1
 
 
 for var, line_nums in trigger_q_usage_lines.items():
@@ -90,5 +94,8 @@ for var, line_nums in trigger_q_usage_lines.items():
                 elif f"{scene}(" in line:
                     new_lines[i] = line.replace(f"{scene}(", f"{new_class_name}(")
 
-            with open(f"{scene}/{new_class_name}.cs", "w") as f:
+            with open(output_dir / f"{new_class_name}.cs", "w") as f:
                 f.writelines(new_lines)
+            generated_count += 1
+
+print(f"Generated {generated_count} boolean input manipulation variants in {output_dir}")

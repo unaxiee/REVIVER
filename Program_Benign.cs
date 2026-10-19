@@ -1,7 +1,7 @@
 //-----------------------------------------------------------------------------
 // FACTORY I/O (SDK)
 //
-// Test harness for measuring benign PickPlaceXYZ execution time.
+// Runs the Assembler scene controller with optional timing.
 //-----------------------------------------------------------------------------
 
 using System;
@@ -19,13 +19,15 @@ namespace Controllers
     {
         public const int CycleTime = 8;
         public const int MaxExecutions = 4000;
+        public static readonly bool EnableTiming = false;
 
-        static readonly string sceneName = "PickPlaceXYZ";
+        static readonly string sceneName = "Assembler";
         static readonly string logRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Logs\Benign";
 
         static void Main(string[] args)
         {
-            InitializeBenignTimingLog();
+            if (EnableTiming)
+                InitializeBenignTimingLog();
 
             MemoryBit start = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Output);
             MemoryBit running = MemoryMap.Instance.GetBit(MemoryMap.BitCount - 16, MemoryType.Input);
@@ -34,36 +36,38 @@ namespace Controllers
             {
                 SwitchToRun(start);
 
-                Controller controller = new PickPlaceXYZ();
-                Debug.WriteLine($"Running benign controller: {sceneName}");
+                Controller controller = new Assembler();
+                Stopwatch cycleStopwatch = EnableTiming ? Stopwatch.StartNew() : null;
+                Stopwatch executionStopwatch = EnableTiming ? Stopwatch.StartNew() : null;
 
-                Stopwatch cycleStopwatch = Stopwatch.StartNew();
-                Stopwatch executionStopwatch = Stopwatch.StartNew();
-                int executionCount = 0;
-
-                while (!controller.stopSignal && executionCount < MaxExecutions)
+                while (!controller.stopSignal && (!EnableTiming || controller.executionCount < MaxExecutions))
                 {
                     MemoryMap.Instance.Update();
 
                     if (running.Value)
                     {
-                        cycleStopwatch.Stop();
-                        controller.executionCount = executionCount;
-                        controller.Execute((int)cycleStopwatch.ElapsedMilliseconds);
-                        executionCount++;
-                        cycleStopwatch.Restart();
+                        int elapsedMilliseconds = CycleTime;
+
+                        if (EnableTiming)
+                        {
+                            cycleStopwatch.Stop();
+                            elapsedMilliseconds = (int)cycleStopwatch.ElapsedMilliseconds;
+                            cycleStopwatch.Restart();
+                        }
+
+                        controller.Execute(elapsedMilliseconds);
+                        controller.executionCount++;
                     }
 
                     Thread.Sleep(CycleTime);
                 }
 
-                executionStopwatch.Stop();
+                if (EnableTiming)
+                {
+                    executionStopwatch.Stop();
+                    AppendBenignTimingLog(sceneName, controller.executionCount, executionStopwatch.Elapsed);
+                }
 
-                Debug.WriteLine(
-                    $"Benign execution complete: executions={executionCount}, " +
-                    $"duration_ms={executionStopwatch.Elapsed.TotalMilliseconds:F3}");
-
-                AppendBenignTimingLog(sceneName, executionCount, executionStopwatch.Elapsed);
                 Shutdown(start);
             }
             finally
