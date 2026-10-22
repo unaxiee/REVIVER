@@ -1,7 +1,7 @@
 //-----------------------------------------------------------------------------
 // FACTORY I/O (SDK)
 //
-// Runs the Assembler scene controller with optional timing.
+// Runs the ProductionLine scene controller with optional timing.
 //-----------------------------------------------------------------------------
 
 using System;
@@ -21,7 +21,7 @@ namespace Controllers
         public const int MaxExecutions = 4000;
         public static readonly bool EnableTiming = false;
 
-        static readonly string sceneName = "Assembler";
+        static readonly string sceneName = "ProductionLine";
         static readonly string logRoot = @"D:\Code\factoryio-sdk-master\factoryio-sdk-master\samples\Controllers\Logs\Benign";
 
         static void Main(string[] args)
@@ -36,7 +36,7 @@ namespace Controllers
             {
                 SwitchToRun(start);
 
-                Controller controller = new Assembler();
+                Controller controller = new ProductionLine();
                 Stopwatch cycleStopwatch = EnableTiming ? Stopwatch.StartNew() : null;
                 Stopwatch executionStopwatch = EnableTiming ? Stopwatch.StartNew() : null;
 

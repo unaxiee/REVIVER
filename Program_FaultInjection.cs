@@ -40,11 +40,23 @@ namespace Controllers
         public const int CsvLogIntervalExecutions = 10;
 
         // Naming schema
-        static string sceneName = "AssemblerAnalog";
-        public const int MaxExecutions = 2000;
-        static readonly bool EnableCsvLogging = true;
-        static readonly bool EnableRecording = false;
-        static readonly bool RunAllManipulations = true;
+        static string sceneName = "ProductionLine";
+        public const int MaxExecutions = 10000;
+        static readonly bool EnableCsvLogging = false;
+        static readonly bool EnableRecording = true;
+        static readonly bool RunAllManipulations = false;
+        // Exact manipulation filenames, with or without .cs.
+        // When nonempty, this list takes priority over variable/value selections.
+        static readonly string[] SelectedManipulationFiles =
+        {
+            "ProductionLine_feedLidMaterial_true_to_false_L78.cs"
+        };
+        // Run every variant for these variables, across all values and source lines.
+        // Leave empty to use the variable/value tuple below instead.
+        static readonly string[] SelectedManipulatedVariables =
+        {
+            "feedLidMaterial"
+        };
         // True replaces the variant's MP4; false preserves it and adds _1, _2, etc.
         static readonly bool OverwriteRecordings = true;
 
@@ -78,7 +90,15 @@ namespace Controllers
             string[] manipulationFiles = GetFaultInjectionManipulationFiles(sceneManipulationFolder);
             System.Diagnostics.Debug.WriteLine($"Found {manipulationFiles.Length} manipulation classes.");
             if (manipulationFiles.Length == 0)
-                throw new InvalidOperationException($"No manipulations matched {SelectedManipulation} at source line {SelectedSourceLine?.ToString() ?? "any"}. Input and Boolean-output mutations require a null nominal value.");
+            {
+                string selection = RunAllManipulations ? "all variants"
+                    : SelectedManipulationFiles.Length > 0
+                    ? "files: " + string.Join(", ", SelectedManipulationFiles)
+                    : SelectedManipulatedVariables.Length > 0
+                    ? "variables: " + string.Join(", ", SelectedManipulatedVariables)
+                    : $"{SelectedManipulation} at source line {SelectedSourceLine?.ToString() ?? "any"}";
+                throw new InvalidOperationException($"No manipulations matched {selection} in {sceneManipulationFolder}.");
+            }
 
             //Stopwatch used to measure elapsed time between cycles
             Stopwatch stopwatch = new Stopwatch();
@@ -282,18 +302,33 @@ namespace Controllers
 
         static string[] GetFaultInjectionManipulationFiles(string sceneManipulationFolder)
         {
+            if (!Directory.Exists(sceneManipulationFolder))
+                throw new DirectoryNotFoundException(sceneManipulationFolder);
             if (RunAllManipulations)
             {
                 return Directory.GetFiles(sceneManipulationFolder, sceneName + "_*.cs", SearchOption.TopDirectoryOnly)
                     .OrderBy(path => path, StringComparer.OrdinalIgnoreCase).ToArray();
             }
-            if (string.IsNullOrWhiteSpace(SelectedManipulation.Variable))
+            if (SelectedManipulationFiles.Length > 0)
+                return SelectedManipulationFiles.Select(file =>
+                {
+                    if (Path.GetFileName(file) != file)
+                        throw new ArgumentException("Select a filename, not a path: " + file);
+                    string name = Path.GetFileNameWithoutExtension(file);
+                    if (!name.StartsWith(sceneName + "_", StringComparison.Ordinal))
+                        throw new ArgumentException("Manipulation does not belong to " + sceneName + ": " + file);
+                    string path = Path.Combine(sceneManipulationFolder, name + ".cs");
+                    if (!File.Exists(path))
+                        throw new FileNotFoundException("Selected manipulation not found.", path);
+                    return path;
+                }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (SelectedManipulatedVariables.Length == 0 && string.IsNullOrWhiteSpace(SelectedManipulation.Variable))
                 throw new InvalidOperationException("Configure the variable in SelectedManipulation before running.");
             if (!Directory.Exists(sceneManipulationFolder))
                 throw new DirectoryNotFoundException(sceneManipulationFolder);
 
             Regex filePattern = new Regex("^" + Regex.Escape(sceneName)
-                + @"_(?<variable>\w+)_(?:(?<nominal>State\d+)_to_(?<manipulated>State\d+)|(?<manipulated>neg|true|false))_L\d+$");
+                + @"_(?<variable>\w+?)_(?:(?<nominal>State\d+|true|false)_to_(?<manipulated>State\d+|true|false)|(?<manipulated>neg|true|false))_L\d+$");
             Regex outputPattern = new Regex("^" + Regex.Escape(sceneName)
                 + @"_(?<variable>\w+)_L\d+$");
             Regex floatInputPattern = new Regex("^" + Regex.Escape(sceneName)
@@ -329,6 +364,9 @@ namespace Controllers
                 if (isOutput)
                     match = outputPattern.Match(Path.GetFileNameWithoutExtension(path));
                 string fileManipulation = isOutput ? "neg" : match.Groups["manipulated"].Value;
+                if (SelectedManipulatedVariables.Length > 0)
+                    return match.Success && SelectedManipulatedVariables.Contains(
+                        match.Groups["variable"].Value, StringComparer.Ordinal);
                 return match.Success && match.Groups["variable"].Value == SelectedManipulation.Variable
                     && (!SelectedSourceLine.HasValue || Path.GetFileNameWithoutExtension(path)
                         .EndsWith($"_L{SelectedSourceLine.Value}", StringComparison.Ordinal))

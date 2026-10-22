@@ -1,7 +1,10 @@
+import argparse
 from pathlib import Path
 import re
 
-scene = "AssemblerAnalog"
+parser = argparse.ArgumentParser(description="Generate Boolean output assignment negations.")
+parser.add_argument("--scene", default="AssemblerAnalog")
+scene = parser.parse_args().scene
 script_dir = Path(__file__).resolve().parent
 output_dir = script_dir / scene
 

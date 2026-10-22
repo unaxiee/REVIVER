@@ -1,8 +1,11 @@
+import argparse
 import re
 from pathlib import Path
 from collections import defaultdict
 
-scene = "AssemblerAnalog"
+parser = argparse.ArgumentParser(description="Generate enum controller-state assignment mutations.")
+parser.add_argument("--scene", default="AssemblerAnalog")
+scene = parser.parse_args().scene
 script_dir = Path(__file__).resolve().parent
 output_dir = script_dir / scene
 
